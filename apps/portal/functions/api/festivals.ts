@@ -1,6 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { Env } from '../_lib/auth'
+import {
+  getCurrentUser,
+  type Env,
+} from '../_lib/auth'
 
 interface FestivalRow {
   id: number
@@ -35,6 +38,75 @@ interface FestivalRow {
 
 interface CountRow {
   total: number
+}
+
+interface CreateFestivalBody {
+  name?: unknown
+  country_id?: unknown
+  city?: unknown
+  venue?: unknown
+  genres?: unknown
+  scale?: unknown
+  scale_category?: unknown
+  event_type?: unknown
+  website_url?: unknown
+  instagram_url?: unknown
+  facebook_url?: unknown
+  source_url?: unknown
+  notes?: unknown
+  priority?: unknown
+  is_stretch?: unknown
+  total_score?: unknown
+  confidence?: unknown
+  pipeline_status?: unknown
+  edition_year?: unknown
+  status_text?: unknown
+  date_text?: unknown
+  application_window?: unknown
+  application_method?: unknown
+  next_action?: unknown
+  email?: unknown
+  phone?: unknown
+}
+
+interface CountryRecord {
+  id: number
+}
+
+interface CreatedFestival {
+  id: number
+  external_id: string
+  name: string
+}
+
+function optionalText(
+  value: unknown,
+  maximumLength: number
+): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const result = value.trim()
+
+  if (!result) {
+    return null
+  }
+
+  return result.slice(0, maximumLength)
+}
+
+function validWebUrl(value: string | null): boolean {
+  if (!value) {
+    return true
+  }
+
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 function boundedInteger(
@@ -257,6 +329,462 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       {
         success: false,
         error: 'Festival kayıtları yüklenemedi.',
+      },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      }
+    )
+  }
+}
+
+export const onRequestPost: PagesFunction<Env> = async (
+  context
+) => {
+  const currentUser = await getCurrentUser(
+    context.request,
+    context.env
+  )
+
+  if (!currentUser) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Oturum gerekli.',
+      },
+      { status: 401 }
+    )
+  }
+
+  let body: CreateFestivalBody
+
+  try {
+    body = (await context.request.json()) as CreateFestivalBody
+  } catch {
+    return Response.json(
+      {
+        success: false,
+        error: 'Geçersiz istek.',
+      },
+      { status: 400 }
+    )
+  }
+
+  const name = optionalText(body.name, 150)
+  const countryId =
+    typeof body.country_id === 'number'
+      ? body.country_id
+      : Number.parseInt(String(body.country_id ?? ''), 10)
+
+  if (!name || name.length < 2) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Festival adı en az 2 karakter olmalıdır.',
+      },
+      { status: 400 }
+    )
+  }
+
+  if (!Number.isInteger(countryId) || countryId <= 0) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Geçerli bir ülke seçilmelidir.',
+      },
+      { status: 400 }
+    )
+  }
+
+  const priority =
+    typeof body.priority === 'string'
+      ? body.priority.trim().toUpperCase()
+      : 'C'
+
+  if (!['A', 'B', 'C', 'D'].includes(priority)) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Geçersiz festival önceliği.',
+      },
+      { status: 400 }
+    )
+  }
+
+  const confidence =
+    typeof body.confidence === 'string'
+      ? body.confidence.trim()
+      : 'Medium'
+
+  if (!['High', 'Medium', 'Low'].includes(confidence)) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Geçersiz güven seviyesi.',
+      },
+      { status: 400 }
+    )
+  }
+
+  const pipelineStatus =
+    typeof body.pipeline_status === 'string'
+      ? body.pipeline_status.trim()
+      : 'Monitor'
+
+  if (!['Verified', 'Monitor'].includes(pipelineStatus)) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Geçersiz araştırma durumu.',
+      },
+      { status: 400 }
+    )
+  }
+
+  const editionYear =
+    typeof body.edition_year === 'number'
+      ? body.edition_year
+      : Number.parseInt(String(body.edition_year ?? ''), 10)
+
+  if (
+    !Number.isInteger(editionYear) ||
+    editionYear < 2026 ||
+    editionYear > 2100
+  ) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Geçersiz festival edisyon yılı.',
+      },
+      { status: 400 }
+    )
+  }
+
+  const scoreValue =
+    typeof body.total_score === 'number'
+      ? body.total_score
+      : Number.parseFloat(String(body.total_score ?? '0'))
+  const totalScore = Number.isFinite(scoreValue)
+    ? Math.min(100, Math.max(0, scoreValue))
+    : 0
+
+  const isStretch =
+    body.is_stretch === true || body.is_stretch === 1
+      ? 1
+      : 0
+
+  const city = optionalText(body.city, 100) ?? ''
+  const venue = optionalText(body.venue, 150)
+  const genres = optionalText(body.genres, 500) ?? 'Unknown'
+  const scale = optionalText(body.scale, 100) ?? 'Unknown'
+  const scaleCategory =
+    optionalText(body.scale_category, 100) ?? 'unknown'
+  const eventType =
+    optionalText(body.event_type, 100) ?? 'festival'
+  const websiteUrl = optionalText(body.website_url, 500)
+  const instagramUrl = optionalText(body.instagram_url, 500)
+  const facebookUrl = optionalText(body.facebook_url, 500)
+  const sourceUrl = optionalText(body.source_url, 500)
+  const notes = optionalText(body.notes, 5000)
+  const statusText =
+    optionalText(body.status_text, 200) ?? 'Monitor'
+  const dateText = optionalText(body.date_text, 300) ?? 'TBA'
+  const applicationWindow = optionalText(
+    body.application_window,
+    500
+  )
+  const applicationMethod =
+    optionalText(body.application_method, 2000) ??
+    'Direct contact / research required'
+  const nextAction =
+    optionalText(body.next_action, 1000) ??
+    'Research booking contact and application window'
+  const email = optionalText(body.email, 320)
+  const phone = optionalText(body.phone, 100)
+
+  const urlFields = [
+    websiteUrl,
+    instagramUrl,
+    facebookUrl,
+    sourceUrl,
+  ]
+
+  if (urlFields.some((value) => !validWebUrl(value))) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Web ve sosyal medya adresleri http:// veya https:// ile başlamalıdır.',
+      },
+      { status: 400 }
+    )
+  }
+
+  let createdFestivalId: number | null = null
+
+  try {
+    const country = await context.env.DB.prepare(
+      `
+        SELECT id
+        FROM countries
+        WHERE id = ? AND is_active = 1
+      `
+    )
+      .bind(countryId)
+      .first<CountryRecord>()
+
+    if (!country) {
+      return Response.json(
+        {
+          success: false,
+          error: 'Seçilen aktif ülke bulunamadı.',
+        },
+        { status: 404 }
+      )
+    }
+
+    const duplicate = await context.env.DB.prepare(
+      `
+        SELECT id
+        FROM festivals
+        WHERE country_id = ?
+          AND name = ? COLLATE NOCASE
+          AND is_active = 1
+      `
+    )
+      .bind(countryId, name)
+      .first<{ id: number }>()
+
+    if (duplicate) {
+      return Response.json(
+        {
+          success: false,
+          error: 'Bu festival aynı ülkede zaten kayıtlı.',
+        },
+        { status: 409 }
+      )
+    }
+
+    const externalId = `SNS-MANUAL-${crypto
+      .randomUUID()
+      .slice(0, 8)
+      .toUpperCase()}`
+
+    await context.env.DB.prepare(
+      `
+        INSERT INTO festivals (
+          country_id,
+          name,
+          city,
+          venue,
+          genres,
+          scale,
+          website_url,
+          instagram_url,
+          facebook_url,
+          source_url,
+          notes,
+          is_active,
+          external_id,
+          event_type,
+          scale_category
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+      `
+    )
+      .bind(
+        countryId,
+        name,
+        city,
+        venue,
+        genres,
+        scale,
+        websiteUrl,
+        instagramUrl,
+        facebookUrl,
+        sourceUrl,
+        notes,
+        externalId,
+        eventType,
+        scaleCategory
+      )
+      .run()
+
+    const festival = await context.env.DB.prepare(
+      `
+        SELECT id, external_id, name
+        FROM festivals
+        WHERE external_id = ?
+      `
+    )
+      .bind(externalId)
+      .first<CreatedFestival>()
+
+    if (!festival) {
+      throw new Error('Created festival could not be loaded')
+    }
+
+    createdFestivalId = festival.id
+
+    const statements: D1PreparedStatement[] = [
+      context.env.DB.prepare(
+        `
+          INSERT INTO festival_research (
+            festival_id,
+            priority,
+            is_stretch,
+            total_score,
+            confidence,
+            pipeline_status,
+            next_action,
+            last_verified,
+            import_batch
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, date('now'), ?)
+        `
+      ).bind(
+        festival.id,
+        priority,
+        isStretch,
+        totalScore,
+        confidence,
+        pipelineStatus,
+        nextAction,
+        `manual:${currentUser.email}`
+      ),
+
+      context.env.DB.prepare(
+        `
+          INSERT INTO festival_editions (
+            festival_id,
+            edition_year,
+            application_status,
+            status_text,
+            date_text,
+            application_window_text
+          )
+          VALUES (?, ?, 'unknown', ?, ?, ?)
+        `
+      ).bind(
+        festival.id,
+        editionYear,
+        statusText,
+        dateText,
+        applicationWindow
+      ),
+    ]
+
+    if (sourceUrl) {
+      statements.push(
+        context.env.DB.prepare(
+          `
+            INSERT INTO festival_sources (
+              festival_id,
+              source_url,
+              source_order,
+              last_verified
+            )
+            VALUES (?, ?, 1, date('now'))
+          `
+        ).bind(festival.id, sourceUrl)
+      )
+    }
+
+    if (email || phone) {
+      statements.push(
+        context.env.DB.prepare(
+          `
+            INSERT INTO contacts (
+              festival_id,
+              role,
+              email,
+              phone,
+              preferred_channel,
+              verified_at
+            )
+            VALUES (?, 'Booking', ?, ?, ?, date('now'))
+          `
+        ).bind(
+          festival.id,
+          email,
+          phone,
+          email ? 'email' : 'phone'
+        )
+      )
+    }
+
+    await context.env.DB.batch(statements)
+
+    const edition = await context.env.DB.prepare(
+      `
+        SELECT id
+        FROM festival_editions
+        WHERE festival_id = ? AND edition_year = ?
+      `
+    )
+      .bind(festival.id, editionYear)
+      .first<{ id: number }>()
+
+    if (!edition) {
+      throw new Error('Created festival edition could not be loaded')
+    }
+
+    await context.env.DB.prepare(
+      `
+        INSERT INTO applications (
+          festival_edition_id,
+          band_name,
+          status,
+          priority,
+          application_method,
+          next_action
+        )
+        VALUES (?, 'Saints ''N'' Sinners', 'not_started', ?, ?, ?)
+      `
+    )
+      .bind(
+        edition.id,
+        priority,
+        applicationMethod,
+        nextAction
+      )
+      .run()
+
+    return Response.json(
+      {
+        success: true,
+        festival,
+      },
+      {
+        status: 201,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      }
+    )
+  } catch (error) {
+    console.error('Festival could not be created:', error)
+
+    if (createdFestivalId !== null) {
+      try {
+        await context.env.DB.prepare(
+          `DELETE FROM festivals WHERE id = ?`
+        )
+          .bind(createdFestivalId)
+          .run()
+      } catch (cleanupError) {
+        console.error(
+          'Incomplete festival could not be removed:',
+          cleanupError
+        )
+      }
+    }
+
+    return Response.json(
+      {
+        success: false,
+        error: 'Festival kaydı oluşturulamadı.',
       },
       {
         status: 500,
