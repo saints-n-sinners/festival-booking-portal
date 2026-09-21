@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "festival-booking-portal",
+  "compatibility_date": "2026-09-21",
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "festival-booking-db",
+      "database_id": "2ac21266-4924-45b0-9471-7f451f3e1a1c"
+    }
+  ]
+}
