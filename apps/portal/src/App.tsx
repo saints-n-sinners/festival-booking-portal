@@ -17,6 +17,7 @@ import {
   Routes,
 } from 'react-router-dom'
 import './App.css'
+import CountriesPage from './pages/CountriesPage'
 
 const navigation = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -285,7 +286,7 @@ function PortalLayout() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route
-              path="/countries"
+              <Route path="/countries" element={<CountriesPage />} />
               element={
                 <PlaceholderPage
                   title="Ülke Yönetimi"
