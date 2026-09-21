@@ -20,6 +20,7 @@ import {
 import AuthGate from './auth/AuthGate'
 import CountriesPage from './pages/CountriesPage'
 import './App.css'
+import FestivalsPage from './pages/FestivalsPage'
 
 const navigation = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -347,15 +348,7 @@ function PortalLayout() {
               element={<CountriesPage />}
             />
 
-            <Route
-              path="/festivals"
-              element={
-                <PlaceholderPage
-                  title="Festivaller"
-                  description="Festival kayıtlarını, edisyonları ve kaynakları yönetin."
-                />
-              }
-            />
+            <Route path="/festivals" element={<FestivalsPage />} />
 
             <Route
               path="/applications"
