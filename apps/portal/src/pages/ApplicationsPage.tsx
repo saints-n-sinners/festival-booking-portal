@@ -5,6 +5,7 @@ import {
 } from 'react'
 import {
   CalendarDays,
+  Clock3,
   ChevronLeft,
   ChevronRight,
   Mail,
@@ -62,6 +63,21 @@ interface CountriesResponse {
   countries?: Country[]
 }
 
+interface ApplicationAction {
+  id: number
+  application_id: number
+  action_type: string
+  performed_by: string | null
+  details: Record<string, unknown> | string | null
+  created_at: string
+}
+
+interface ApplicationActionsResponse {
+  success: boolean
+  actions?: ApplicationAction[]
+  error?: string
+}
+
 interface EditForm {
   status: string
   priority: string
@@ -95,6 +111,83 @@ const emptyForm: EditForm = {
   notes: '',
 }
 
+const historyFieldLabels: Record<string, string> = {
+  status: 'Durum',
+  priority: 'Öncelik',
+  assigned_to: 'Sorumlu',
+  follow_up_date: 'Takip tarihi',
+  next_action: 'Sonraki aksiyon',
+  response_text: 'Alınan yanıt',
+  notes: 'İç notlar',
+}
+
+function formatHistoryValue(
+  field: string,
+  value: unknown
+) {
+  if (value === null || value === undefined || value === '') {
+    return '—'
+  }
+
+  if (field === 'status' && typeof value === 'string') {
+    return statusLabels[value] ?? value
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  return JSON.stringify(value)
+}
+
+function describeChanges(
+  details: ApplicationAction['details']
+) {
+  if (!details) {
+    return []
+  }
+
+  if (typeof details === 'string') {
+    return [details]
+  }
+
+  return Object.entries(details).map(([field, change]) => {
+    const label = historyFieldLabels[field] ?? field
+
+    if (
+      change &&
+      typeof change === 'object' &&
+      !Array.isArray(change) &&
+      ('from' in change || 'to' in change)
+    ) {
+      const transition = change as {
+        from?: unknown
+        to?: unknown
+      }
+
+      return `${label}: ${formatHistoryValue(
+        field,
+        transition.from
+      )} → ${formatHistoryValue(field, transition.to)}`
+    }
+
+    return `${label}: ${formatHistoryValue(field, change)}`
+  })
+}
+
+function formatHistoryDate(value: string) {
+  const date = new Date(value.includes('T') ? value : `${value}Z`)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('tr-TR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
 function ApplicationsPage() {
   const [countries, setCountries] = useState<Country[]>([])
   const [applications, setApplications] = useState<Application[]>([])
@@ -115,6 +208,11 @@ function ApplicationsPage() {
   const [editForm, setEditForm] = useState<EditForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [actionHistory, setActionHistory] = useState<
+    ApplicationAction[]
+  >([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -244,6 +342,40 @@ function ApplicationsPage() {
     setPage(0)
   }
 
+  async function loadActionHistory(applicationId: number) {
+    setHistoryLoading(true)
+    setHistoryError('')
+    setActionHistory([])
+
+    try {
+      const response = await fetch(
+        `/api/applications/${applicationId}/actions`,
+        {
+          credentials: 'same-origin',
+        }
+      )
+
+      const data =
+        (await response.json()) as ApplicationActionsResponse
+
+      if (!response.ok || !data.success || !data.actions) {
+        throw new Error(
+          data.error || 'İşlem geçmişi yüklenemedi.'
+        )
+      }
+
+      setActionHistory(data.actions)
+    } catch (requestError) {
+      setHistoryError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'İşlem geçmişi yüklenemedi.'
+      )
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
   function openEditor(application: Application) {
     setEditing(application)
     setSaveError('')
@@ -257,6 +389,8 @@ function ApplicationsPage() {
       response_text: application.response_text ?? '',
       notes: application.notes ?? '',
     })
+
+    void loadActionHistory(application.id)
   }
 
   function closeEditor() {
@@ -266,6 +400,8 @@ function ApplicationsPage() {
 
     setEditing(null)
     setSaveError('')
+    setActionHistory([])
+    setHistoryError('')
   }
 
   async function saveApplication(
@@ -747,6 +883,84 @@ function ApplicationsPage() {
                   maxLength={5000}
                 />
               </label>
+
+              <section className="application-history">
+                <div className="application-history-heading">
+                  <div>
+                    <span>İşlem geçmişi</span>
+                    <h3>Değişiklik zaman çizelgesi</h3>
+                  </div>
+
+                  <Clock3 size={20} />
+                </div>
+
+                {historyLoading && (
+                  <div className="application-history-message">
+                    Geçmiş yükleniyor…
+                  </div>
+                )}
+
+                {!historyLoading && historyError && (
+                  <div className="application-history-message application-history-error">
+                    {historyError}
+                  </div>
+                )}
+
+                {!historyLoading &&
+                  !historyError &&
+                  actionHistory.length === 0 && (
+                    <div className="application-history-message">
+                      Bu başvuru için henüz kayıtlı işlem yok.
+                    </div>
+                  )}
+
+                {!historyLoading &&
+                  !historyError &&
+                  actionHistory.length > 0 && (
+                    <div className="application-timeline">
+                      {actionHistory.map((action) => {
+                        const changes = describeChanges(
+                          action.details
+                        )
+
+                        return (
+                          <article
+                            className="application-timeline-item"
+                            key={action.id}
+                          >
+                            <div className="application-timeline-dot" />
+
+                            <div className="application-timeline-content">
+                              <strong>Başvuru güncellendi</strong>
+
+                              <div className="application-timeline-meta">
+                                <span>
+                                  {action.performed_by ??
+                                    'Sistem'}
+                                </span>
+                                <time dateTime={action.created_at}>
+                                  {formatHistoryDate(
+                                    action.created_at
+                                  )}
+                                </time>
+                              </div>
+
+                              {changes.length > 0 && (
+                                <ul>
+                                  {changes.map((change, index) => (
+                                    <li key={`${action.id}-${index}`}>
+                                      {change}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  )}
+              </section>
 
               {saveError && (
                 <div className="application-save-error">
