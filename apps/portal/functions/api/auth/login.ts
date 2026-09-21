@@ -11,7 +11,7 @@ import {
   verifyPassword,
   type Env,
   type SessionUser,
-} from '../../_lib/auth'
+} from '../../functions/_lib/auth'
 
 interface UserRecord extends SessionUser {
   password_hash: string

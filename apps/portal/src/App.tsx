@@ -18,6 +18,7 @@ import {
 } from 'react-router-dom'
 import './App.css'
 import CountriesPage from './pages/CountriesPage'
+import AuthGate from './auth/AuthGate'
 
 const navigation = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -334,7 +335,9 @@ function PortalLayout() {
 function App() {
   return (
     <BrowserRouter>
-      <PortalLayout />
+      <AuthGate>
+        <PortalLayout />
+      </AuthGate>
     </BrowserRouter>
   )
 }

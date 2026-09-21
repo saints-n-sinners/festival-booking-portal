@@ -3,9 +3,21 @@
 import {
   getCurrentUser,
   type Env,
-} from '../../functions/_lib/auth'
+} from '../_lib/auth'
 
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+const publicPaths = new Set([
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/me',
+])
+
+export const onRequest: PagesFunction<Env> = async (context) => {
+  const pathname = new URL(context.request.url).pathname
+
+  if (publicPaths.has(pathname)) {
+    return context.next()
+  }
+
   const user = await getCurrentUser(
     context.request,
     context.env
@@ -15,7 +27,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json(
       {
         success: false,
-        authenticated: false,
+        error: 'Oturum gerekli.',
       },
       {
         status: 401,
@@ -26,16 +38,5 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     )
   }
 
-  return Response.json(
-    {
-      success: true,
-      authenticated: true,
-      user,
-    },
-    {
-      headers: {
-        'Cache-Control': 'no-store',
-      },
-    }
-  )
+  return context.next()
 }
