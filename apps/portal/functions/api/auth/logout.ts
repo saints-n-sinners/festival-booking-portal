@@ -4,7 +4,7 @@ import {
   createExpiredSessionCookie,
   deleteCurrentSession,
   type Env,
-} from '../../functions/_lib/auth'
+} from '../../_lib/auth'
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   await deleteCurrentSession(

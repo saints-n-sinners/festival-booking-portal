@@ -3,7 +3,7 @@
 import {
   getCurrentUser,
   type Env,
-} from '../../functions/_lib/auth'
+} from '../../_lib/auth'
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const user = await getCurrentUser(
