@@ -20,6 +20,7 @@ import {
   NavLink,
   Route,
   Routes,
+  useNavigate,
 } from 'react-router-dom'
 import AuthGate from './auth/AuthGate'
 import CountriesPage from './pages/CountriesPage'
@@ -54,7 +55,72 @@ type DashboardMetrics = {
 type DashboardResponse = {
   success: boolean
   metrics?: DashboardMetrics
+  upcoming_actions?: UpcomingAction[]
   error?: string
+}
+
+type UpcomingAction = {
+  application_id: number
+  festival_name: string
+  city: string
+  country: string
+  status: string
+  priority: string
+  follow_up_date: string
+  next_action: string
+}
+
+type ActionUrgency = {
+  className: string
+  label: string
+}
+
+function formatActionDate(value: string) {
+  const date = new Date(`${value}T00:00:00`)
+
+  if (Number.isNaN(date.getTime())) {
+    return {
+      day: '—',
+      month: '—',
+    }
+  }
+
+  return {
+    day: String(date.getDate()).padStart(2, '0'),
+    month: new Intl.DateTimeFormat('tr-TR', {
+      month: 'short',
+    })
+      .format(date)
+      .replace('.', '')
+      .toLocaleUpperCase('tr-TR'),
+  }
+}
+
+function getActionUrgency(value: string): ActionUrgency {
+  const actionDate = new Date(`${value}T23:59:59`)
+  const now = new Date()
+
+  if (actionDate.getTime() < now.getTime()) {
+    return {
+      className: 'status-urgent',
+      label: 'Gecikti',
+    }
+  }
+
+  const fourteenDaysLater = new Date()
+  fourteenDaysLater.setDate(fourteenDaysLater.getDate() + 14)
+
+  if (actionDate.getTime() <= fourteenDaysLater.getTime()) {
+    return {
+      className: 'status-urgent',
+      label: 'Acil',
+    }
+  }
+
+  return {
+    className: 'status-planned',
+    label: 'Planlandı',
+  }
 }
 
 function MetricCard({
@@ -75,7 +141,11 @@ function MetricCard({
 function Dashboard() {
   const [metrics, setMetrics] =
     useState<DashboardMetrics | null>(null)
+  const [upcomingActions, setUpcomingActions] = useState<
+    UpcomingAction[]
+  >([])
   const [metricsError, setMetricsError] = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -99,6 +169,7 @@ function Dashboard() {
         }
 
         setMetrics(data.metrics)
+        setUpcomingActions(data.upcoming_actions ?? [])
       } catch (requestError) {
         if (
           requestError instanceof Error &&
@@ -189,58 +260,78 @@ function Dashboard() {
               <p>Öncelikli başvuru ve takip görevleri</p>
             </div>
 
-            <button className="text-button" type="button">
+            <button
+              className="text-button"
+              type="button"
+              onClick={() => navigate('/applications')}
+            >
               Tümünü gör
               <ChevronRight size={16} />
             </button>
           </div>
 
           <div className="action-list">
-            <div className="action-row">
-              <div className="action-date urgent">
-                <strong>05</strong>
-                <span>EKİ</span>
+            {!metrics && !metricsError && (
+              <div className="action-row">
+                <div className="action-content">
+                  <strong>Aksiyonlar yükleniyor…</strong>
+                  <span>Takip takvimi hazırlanıyor.</span>
+                </div>
               </div>
+            )}
 
-              <div className="action-content">
-                <strong>XXII ROCKOWANIA – Mława</strong>
-                <span>
-                  Başvuru uygunluğunu organizatörden doğrula
-                </span>
+            {metrics && upcomingActions.length === 0 && (
+              <div className="action-row">
+                <div className="action-content">
+                  <strong>Planlanmış takip bulunmuyor</strong>
+                  <span>
+                    Başvurular sayfasından takip tarihi ve
+                    sonraki aksiyon ekleyebilirsiniz.
+                  </span>
+                </div>
               </div>
+            )}
 
-              <span className="status status-urgent">Acil</span>
-            </div>
+            {upcomingActions.map((action) => {
+              const date = formatActionDate(
+                action.follow_up_date
+              )
+              const urgency = getActionUrgency(
+                action.follow_up_date
+              )
 
-            <div className="action-row">
-              <div className="action-date">
-                <strong>30</strong>
-                <span>EYL</span>
-              </div>
+              return (
+                <div
+                  className="action-row"
+                  key={action.application_id}
+                >
+                  <div
+                    className={`action-date ${
+                      urgency.className === 'status-urgent'
+                        ? 'urgent'
+                        : ''
+                    }`}
+                  >
+                    <strong>{date.day}</strong>
+                    <span>{date.month}</span>
+                  </div>
 
-              <div className="action-content">
-                <strong>Metal im Woid</strong>
-                <span>
-                  2027 başvuru penceresini haftalık kontrol et
-                </span>
-              </div>
+                  <div className="action-content">
+                    <strong>{action.festival_name}</strong>
+                    <span>
+                      {action.next_action} · {action.city},{' '}
+                      {action.country}
+                    </span>
+                  </div>
 
-              <span className="status status-monitor">İzleniyor</span>
-            </div>
-
-            <div className="action-row">
-              <div className="action-date">
-                <strong>01</strong>
-                <span>EKİ</span>
-              </div>
-
-              <div className="action-content">
-                <strong>Genel festival taraması</strong>
-                <span>Ülke kaynakları ve hashtag taraması</span>
-              </div>
-
-              <span className="status status-planned">Planlandı</span>
-            </div>
+                  <span
+                    className={`status ${urgency.className}`}
+                  >
+                    {urgency.label}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         </article>
 
