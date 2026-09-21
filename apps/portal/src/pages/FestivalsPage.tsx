@@ -9,7 +9,10 @@ import {
   ExternalLink,
   Mail,
   MapPin,
+  Plus,
+  Save,
   Search,
+  X,
 } from 'lucide-react'
 import './FestivalsPage.css'
 
@@ -62,7 +65,63 @@ interface FestivalsResponse {
   error?: string
 }
 
+interface FestivalForm {
+  name: string
+  country_id: string
+  city: string
+  genres: string
+  scale: string
+  scale_category: string
+  event_type: string
+  priority: string
+  is_stretch: boolean
+  total_score: string
+  confidence: string
+  pipeline_status: string
+  edition_year: string
+  status_text: string
+  date_text: string
+  application_window: string
+  application_method: string
+  next_action: string
+  email: string
+  phone: string
+  website_url: string
+  instagram_url: string
+  facebook_url: string
+  source_url: string
+  notes: string
+}
+
 const PAGE_SIZE = 25
+
+const emptyFestivalForm: FestivalForm = {
+  name: '',
+  country_id: '',
+  city: '',
+  genres: '',
+  scale: '',
+  scale_category: 'small-medium',
+  event_type: 'festival',
+  priority: 'C',
+  is_stretch: false,
+  total_score: '0',
+  confidence: 'Medium',
+  pipeline_status: 'Monitor',
+  edition_year: '2027',
+  status_text: 'Monitor',
+  date_text: 'TBA',
+  application_window: '',
+  application_method: '',
+  next_action: '',
+  email: '',
+  phone: '',
+  website_url: '',
+  instagram_url: '',
+  facebook_url: '',
+  source_url: '',
+  notes: '',
+}
 
 function FestivalsPage() {
   const [countries, setCountries] = useState<Country[]>([])
@@ -76,8 +135,14 @@ function FestivalsPage() {
   const [pipelineStatus, setPipelineStatus] = useState('')
 
   const [page, setPage] = useState(0)
+  const [reloadKey, setReloadKey] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [festivalForm, setFestivalForm] =
+    useState<FestivalForm>(emptyFestivalForm)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -188,6 +253,7 @@ function FestivalsPage() {
     page,
     pipelineStatus,
     priority,
+    reloadKey,
     search,
   ])
 
@@ -204,6 +270,79 @@ function FestivalsPage() {
     setPriority('')
     setPipelineStatus('')
     setPage(0)
+  }
+
+  function openCreateModal() {
+    setFestivalForm(emptyFestivalForm)
+    setSaveError('')
+    setCreateOpen(true)
+  }
+
+  function closeCreateModal() {
+    if (saving) {
+      return
+    }
+
+    setCreateOpen(false)
+    setSaveError('')
+  }
+
+  function updateFestivalForm(
+    field: keyof FestivalForm,
+    value: string | boolean
+  ) {
+    setFestivalForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  async function createFestival(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault()
+    setSaving(true)
+    setSaveError('')
+
+    try {
+      const response = await fetch('/api/festivals', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...festivalForm,
+          country_id: Number(festivalForm.country_id),
+          total_score: Number(festivalForm.total_score),
+          edition_year: Number(festivalForm.edition_year),
+        }),
+      })
+
+      const data =
+        (await response.json()) as FestivalsResponse
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Festival eklenemedi.')
+      }
+
+      setCreateOpen(false)
+      setSearchInput('')
+      setSearch('')
+      setCountry('')
+      setPriority('')
+      setPipelineStatus('')
+      setPage(0)
+      setReloadKey((value) => value + 1)
+    } catch (requestError) {
+      setSaveError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Festival eklenemedi.'
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   const firstRecord = total === 0
@@ -234,9 +373,20 @@ function FestivalsPage() {
           </p>
         </div>
 
-        <div className="festivals-total">
-          <strong>{total}</strong>
-          <span>kayıt</span>
+        <div className="festivals-heading-actions">
+          <div className="festivals-total">
+            <strong>{total}</strong>
+            <span>kayıt</span>
+          </div>
+
+          <button
+            className="festival-add-button"
+            type="button"
+            onClick={openCreateModal}
+          >
+            <Plus size={17} />
+            Festival ekle
+          </button>
         </div>
       </section>
 
@@ -499,6 +649,428 @@ function FestivalsPage() {
             </div>
           </footer>
         </>
+      )}
+
+      {createOpen && (
+        <div className="festival-modal-backdrop">
+          <section
+            className="festival-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="festival-modal-title"
+          >
+            <header>
+              <div>
+                <span>Yeni festival</span>
+                <h2 id="festival-modal-title">
+                  Festival kaydı oluştur
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                aria-label="Pencereyi kapat"
+              >
+                <X size={20} />
+              </button>
+            </header>
+
+            <form onSubmit={createFestival}>
+              <fieldset>
+                <legend>Temel bilgiler</legend>
+
+                <div className="festival-form-grid">
+                  <label className="festival-form-wide">
+                    Festival adı
+                    <input
+                      type="text"
+                      value={festivalForm.name}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'name',
+                          event.target.value
+                        )
+                      }
+                      minLength={2}
+                      maxLength={150}
+                      required
+                      autoFocus
+                    />
+                  </label>
+
+                  <label>
+                    Ülke
+                    <select
+                      value={festivalForm.country_id}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'country_id',
+                          event.target.value
+                        )
+                      }
+                      required
+                    >
+                      <option value="">Ülke seçin</option>
+                      {countries.map((item) => (
+                        <option value={item.id} key={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Şehir
+                    <input
+                      type="text"
+                      value={festivalForm.city}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'city',
+                          event.target.value
+                        )
+                      }
+                      maxLength={100}
+                    />
+                  </label>
+
+                  <label className="festival-form-wide">
+                    Müzik türleri
+                    <input
+                      type="text"
+                      value={festivalForm.genres}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'genres',
+                          event.target.value
+                        )
+                      }
+                      placeholder="heavy metal, hard rock, power metal"
+                      maxLength={500}
+                    />
+                  </label>
+
+                  <label>
+                    Ölçek açıklaması
+                    <input
+                      type="text"
+                      value={festivalForm.scale}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'scale',
+                          event.target.value
+                        )
+                      }
+                      placeholder="Small / 500–1000"
+                    />
+                  </label>
+
+                  <label>
+                    Ölçek kategorisi
+                    <select
+                      value={festivalForm.scale_category}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'scale_category',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="small">Small</option>
+                      <option value="small-medium">
+                        Small-medium
+                      </option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                    </select>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Araştırma ve öncelik</legend>
+
+                <div className="festival-form-grid">
+                  <label>
+                    Öncelik
+                    <select
+                      value={festivalForm.priority}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'priority',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="D">D</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Pipeline durumu
+                    <select
+                      value={festivalForm.pipeline_status}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'pipeline_status',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="Monitor">Monitor</option>
+                      <option value="Verified">Verified</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Güven seviyesi
+                    <select
+                      value={festivalForm.confidence}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'confidence',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Toplam puan
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={festivalForm.total_score}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'total_score',
+                          event.target.value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label className="festival-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={festivalForm.is_stretch}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'is_stretch',
+                          event.target.checked
+                        )
+                      }
+                    />
+                    Stretch hedefi
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Edisyon ve başvuru</legend>
+
+                <div className="festival-form-grid">
+                  <label>
+                    Edisyon yılı
+                    <input
+                      type="number"
+                      min="2026"
+                      max="2100"
+                      value={festivalForm.edition_year}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'edition_year',
+                          event.target.value
+                        )
+                      }
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Edisyon durumu
+                    <input
+                      type="text"
+                      value={festivalForm.status_text}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'status_text',
+                          event.target.value
+                        )
+                      }
+                      placeholder="Confirmed / Monitor"
+                    />
+                  </label>
+
+                  <label className="festival-form-wide">
+                    Tarih bilgisi
+                    <input
+                      type="text"
+                      value={festivalForm.date_text}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'date_text',
+                          event.target.value
+                        )
+                      }
+                      placeholder="12–13 June 2027"
+                    />
+                  </label>
+
+                  <label className="festival-form-wide">
+                    Başvuru penceresi
+                    <input
+                      type="text"
+                      value={festivalForm.application_window}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'application_window',
+                          event.target.value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label className="festival-form-wide">
+                    Başvuru yöntemi
+                    <textarea
+                      value={festivalForm.application_method}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'application_method',
+                          event.target.value
+                        )
+                      }
+                      rows={3}
+                    />
+                  </label>
+
+                  <label className="festival-form-wide">
+                    Sonraki aksiyon
+                    <textarea
+                      value={festivalForm.next_action}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'next_action',
+                          event.target.value
+                        )
+                      }
+                      rows={3}
+                    />
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>İletişim ve kaynaklar</legend>
+
+                <div className="festival-form-grid">
+                  <label>
+                    E-posta
+                    <input
+                      type="email"
+                      value={festivalForm.email}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'email',
+                          event.target.value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    Telefon
+                    <input
+                      type="text"
+                      value={festivalForm.phone}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'phone',
+                          event.target.value
+                        )
+                      }
+                    />
+                  </label>
+
+                  {(
+                    [
+                      ['website_url', 'Website'],
+                      ['instagram_url', 'Instagram'],
+                      ['facebook_url', 'Facebook'],
+                      ['source_url', 'Kaynak URL'],
+                    ] as const
+                  ).map(([field, label]) => (
+                    <label key={field}>
+                      {label}
+                      <input
+                        type="url"
+                        value={festivalForm[field]}
+                        onChange={(event) =>
+                          updateFestivalForm(
+                            field,
+                            event.target.value
+                          )
+                        }
+                        placeholder="https://"
+                      />
+                    </label>
+                  ))}
+
+                  <label className="festival-form-wide">
+                    Notlar
+                    <textarea
+                      value={festivalForm.notes}
+                      onChange={(event) =>
+                        updateFestivalForm(
+                          'notes',
+                          event.target.value
+                        )
+                      }
+                      rows={3}
+                    />
+                  </label>
+                </div>
+              </fieldset>
+
+              {saveError && (
+                <div className="festival-save-error">
+                  {saveError}
+                </div>
+              )}
+
+              <footer>
+                <button
+                  className="festival-modal-cancel"
+                  type="button"
+                  onClick={closeCreateModal}
+                  disabled={saving}
+                >
+                  Vazgeç
+                </button>
+
+                <button
+                  className="festival-modal-save"
+                  type="submit"
+                  disabled={saving}
+                >
+                  <Save size={17} />
+                  {saving ? 'Kaydediliyor…' : 'Festivali kaydet'}
+                </button>
+              </footer>
+            </form>
+          </section>
+        </div>
       )}
     </div>
   )
