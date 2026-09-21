@@ -1,4 +1,8 @@
 import {
+  useEffect,
+  useState,
+} from 'react'
+import {
   Bell,
   CalendarDays,
   ChevronRight,
@@ -39,6 +43,20 @@ type MetricCardProps = {
   tone: 'blue' | 'green' | 'orange' | 'purple'
 }
 
+type DashboardMetrics = {
+  festivals: number
+  countries: number
+  urgent_applications: number
+  completed_applications: number
+  active_applications: number
+}
+
+type DashboardResponse = {
+  success: boolean
+  metrics?: DashboardMetrics
+  error?: string
+}
+
 function MetricCard({
   label,
   value,
@@ -55,6 +73,47 @@ function MetricCard({
 }
 
 function Dashboard() {
+  const [metrics, setMetrics] =
+    useState<DashboardMetrics | null>(null)
+  const [metricsError, setMetricsError] = useState('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadDashboardMetrics() {
+      setMetricsError('')
+
+      try {
+        const response = await fetch('/api/dashboard', {
+          credentials: 'same-origin',
+          signal: controller.signal,
+        })
+
+        const data =
+          (await response.json()) as DashboardResponse
+
+        if (!response.ok || !data.success || !data.metrics) {
+          throw new Error(
+            data.error || 'Dashboard verileri yüklenemedi.'
+          )
+        }
+
+        setMetrics(data.metrics)
+      } catch (requestError) {
+        if (
+          requestError instanceof Error &&
+          requestError.name !== 'AbortError'
+        ) {
+          setMetricsError('Dashboard verileri yüklenemedi.')
+        }
+      }
+    }
+
+    void loadDashboardMetrics()
+
+    return () => controller.abort()
+  }, [])
+
   return (
     <>
       <section className="page-heading">
@@ -75,33 +134,52 @@ function Dashboard() {
 
       <section className="metrics-grid">
         <MetricCard
-          label="Excel kayıtları"
-          value="165"
-          description="Veritabanına aktarılacak"
+          label="Festival kayıtları"
+          value={metrics ? String(metrics.festivals) : '—'}
+          description={
+            metrics
+              ? `${metrics.active_applications} aktif başvuru süreci`
+              : 'Veriler yükleniyor'
+          }
           tone="blue"
         />
 
         <MetricCard
           label="Takip edilen ülke"
-          value="10"
+          value={metrics ? String(metrics.countries) : '—'}
           description="Aktif araştırma pazarı"
           tone="green"
         />
 
         <MetricCard
-          label="Acil fırsat"
-          value="1"
-          description="Son başvuru tarihi yakın"
+          label="Acil takip"
+          value={
+            metrics
+              ? String(metrics.urgent_applications)
+              : '—'
+          }
+          description="14 gün içinde veya gecikmiş"
           tone="orange"
         />
 
         <MetricCard
           label="Tamamlanan başvuru"
-          value="0"
-          description="Henüz başvuru kaydı yok"
+          value={
+            metrics
+              ? String(metrics.completed_applications)
+              : '—'
+          }
+          description="Kabul, ret veya kapanan kayıt"
           tone="purple"
         />
       </section>
+
+      {metricsError && (
+        <div className="empty-state" role="alert">
+          <strong>{metricsError}</strong>
+          <span>Sayfayı yenileyerek tekrar deneyin.</span>
+        </div>
+      )}
 
       <section className="dashboard-grid">
         <article className="panel">
