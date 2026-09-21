@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Globe2,
   LayoutDashboard,
+  LogOut,
   Radar,
   Search,
   Send,
@@ -16,9 +17,9 @@ import {
   Route,
   Routes,
 } from 'react-router-dom'
-import './App.css'
-import CountriesPage from './pages/CountriesPage'
 import AuthGate from './auth/AuthGate'
+import CountriesPage from './pages/CountriesPage'
+import './App.css'
 
 const navigation = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -77,18 +78,21 @@ function Dashboard() {
           description="Veritabanına aktarılacak"
           tone="blue"
         />
+
         <MetricCard
           label="Takip edilen ülke"
           value="10"
-          description="Ülke yönetimi yakında"
+          description="Aktif araştırma pazarı"
           tone="green"
         />
+
         <MetricCard
           label="Acil fırsat"
           value="1"
           description="Son başvuru tarihi yakın"
           tone="orange"
         />
+
         <MetricCard
           label="Tamamlanan başvuru"
           value="0"
@@ -104,6 +108,7 @@ function Dashboard() {
               <h2>Yaklaşan aksiyonlar</h2>
               <p>Öncelikli başvuru ve takip görevleri</p>
             </div>
+
             <button className="text-button" type="button">
               Tümünü gör
               <ChevronRight size={16} />
@@ -116,10 +121,14 @@ function Dashboard() {
                 <strong>05</strong>
                 <span>EKİ</span>
               </div>
+
               <div className="action-content">
                 <strong>XXII ROCKOWANIA – Mława</strong>
-                <span>Başvuru uygunluğunu organizatörden doğrula</span>
+                <span>
+                  Başvuru uygunluğunu organizatörden doğrula
+                </span>
               </div>
+
               <span className="status status-urgent">Acil</span>
             </div>
 
@@ -128,10 +137,14 @@ function Dashboard() {
                 <strong>30</strong>
                 <span>EYL</span>
               </div>
+
               <div className="action-content">
                 <strong>Metal im Woid</strong>
-                <span>2027 başvuru penceresini haftalık kontrol et</span>
+                <span>
+                  2027 başvuru penceresini haftalık kontrol et
+                </span>
               </div>
+
               <span className="status status-monitor">İzleniyor</span>
             </div>
 
@@ -140,10 +153,12 @@ function Dashboard() {
                 <strong>01</strong>
                 <span>EKİ</span>
               </div>
+
               <div className="action-content">
                 <strong>Genel festival taraması</strong>
                 <span>Ülke kaynakları ve hashtag taraması</span>
               </div>
+
               <span className="status status-planned">Planlandı</span>
             </div>
           </div>
@@ -162,10 +177,12 @@ function Dashboard() {
               <div className="discovery-icon">
                 <Search size={21} />
               </div>
+
               <div>
                 <strong>Grup geçmişinden ara</strong>
                 <span>Bir grubun çaldığı festivalleri keşfet</span>
               </div>
+
               <ChevronRight size={18} />
             </button>
 
@@ -173,10 +190,14 @@ function Dashboard() {
               <div className="discovery-icon">
                 <Radar size={21} />
               </div>
+
               <div>
                 <strong>Hashtag taraması</strong>
-                <span>Sosyal medyadan yeni etkinlik adayları bul</span>
+                <span>
+                  Sosyal medyadan yeni etkinlik adayları bul
+                </span>
               </div>
+
               <ChevronRight size={18} />
             </button>
 
@@ -184,10 +205,14 @@ function Dashboard() {
               <div className="discovery-icon">
                 <ClipboardList size={21} />
               </div>
+
               <div>
                 <strong>İncelenecek adaylar</strong>
-                <span>Doğrulama bekleyen keşifleri görüntüle</span>
+                <span>
+                  Doğrulama bekleyen keşifleri görüntüle
+                </span>
               </div>
+
               <ChevronRight size={18} />
             </button>
           </div>
@@ -214,19 +239,37 @@ function PlaceholderPage({
 
       <div className="empty-state">
         <ClipboardList size={34} />
-        <strong>Bu bölüm sonraki aşamalarda hazırlanacak.</strong>
-        <span>Temel portal navigasyonu başarıyla çalışıyor.</span>
+
+        <strong>
+          Bu bölüm sonraki aşamalarda hazırlanacak.
+        </strong>
+
+        <span>
+          Temel portal navigasyonu başarıyla çalışıyor.
+        </span>
       </div>
     </section>
   )
 }
 
 function PortalLayout() {
+  async function handleLogout() {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+    } finally {
+      window.location.reload()
+    }
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">SNS</div>
+
           <div className="brand-text">
             <strong>Saints ’N’ Sinners</strong>
             <span>Booking Portal</span>
@@ -255,10 +298,21 @@ function PortalLayout() {
 
         <div className="sidebar-footer">
           <div className="user-avatar">OO</div>
+
           <div className="user-info">
             <strong>Portal yöneticisi</strong>
             <span>Administrator</span>
           </div>
+
+          <button
+            className="logout-button"
+            type="button"
+            onClick={() => void handleLogout()}
+            aria-label="Çıkış yap"
+            title="Çıkış yap"
+          >
+            <LogOut size={17} />
+          </button>
         </div>
       </aside>
 
@@ -266,6 +320,7 @@ function PortalLayout() {
         <header className="topbar">
           <div className="search-box">
             <Search size={18} />
+
             <input
               type="search"
               placeholder="Festival, ülke veya organizatör ara..."
@@ -287,8 +342,11 @@ function PortalLayout() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
 
-            <Route path="/countries" element={<CountriesPage />} />
-            
+            <Route
+              path="/countries"
+              element={<CountriesPage />}
+            />
+
             <Route
               path="/festivals"
               element={
@@ -298,6 +356,7 @@ function PortalLayout() {
                 />
               }
             />
+
             <Route
               path="/applications"
               element={
@@ -307,6 +366,7 @@ function PortalLayout() {
                 />
               }
             />
+
             <Route
               path="/discoveries"
               element={
@@ -316,6 +376,7 @@ function PortalLayout() {
                 />
               }
             />
+
             <Route
               path="/organizers"
               element={
