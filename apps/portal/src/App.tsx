@@ -285,15 +285,9 @@ function PortalLayout() {
         <div className="page-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route
-              <Route path="/countries" element={<CountriesPage />} />
-              element={
-                <PlaceholderPage
-                  title="Ülke Yönetimi"
-                  description="Ülkeleri, yerel arama terimlerini ve tarama ayarlarını yönetin."
-                />
-              }
-            />
+
+            <Route path="/countries" element={<CountriesPage />} />
+            
             <Route
               path="/festivals"
               element={
