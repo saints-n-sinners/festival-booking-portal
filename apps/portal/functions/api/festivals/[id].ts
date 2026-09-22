@@ -32,6 +32,7 @@ interface FestivalDetails {
   date_text: string | null
   application_window: string | null
   application_id: number | null
+  application_priority: string | null
   application_method: string | null
   next_action: string | null
   contact_id: number | null
@@ -142,6 +143,7 @@ async function loadFestival(
           AS application_window,
 
         applications.id AS application_id,
+        applications.priority AS application_priority,
         applications.application_method,
         applications.next_action,
 
@@ -602,21 +604,70 @@ export const onRequestPatch: PagesFunction<Env> = async (
     }
 
     if (current.application_id) {
-      await context.env.DB.prepare(
-        `
-          UPDATE applications
-          SET priority = ?, application_method = ?,
-              next_action = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `
-      )
-        .bind(
+      const changes: Record<
+        string,
+        { from: string | null; to: string | null }
+      > = {}
+
+      if (current.application_priority !== priority) {
+        changes.priority = {
+          from: current.application_priority,
+          to: priority,
+        }
+      }
+
+      if (current.application_method !== applicationMethod) {
+        changes.application_method = {
+          from: current.application_method,
+          to: applicationMethod,
+        }
+      }
+
+      if (current.next_action !== nextAction) {
+        changes.next_action = {
+          from: current.next_action,
+          to: nextAction,
+        }
+      }
+
+      const statements: D1PreparedStatement[] = [
+        context.env.DB.prepare(
+          `
+            UPDATE applications
+            SET priority = ?, application_method = ?,
+                next_action = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `
+        ).bind(
           priority,
           applicationMethod,
           nextAction,
           current.application_id
+        ),
+      ]
+
+      if (Object.keys(changes).length > 0) {
+        statements.push(
+          context.env.DB.prepare(
+            `
+              INSERT INTO application_actions (
+                application_id,
+                action_type,
+                performed_by,
+                details
+              )
+              VALUES (?, ?, ?, ?)
+            `
+          ).bind(
+            current.application_id,
+            'festival_application_updated',
+            currentUser.email,
+            JSON.stringify(changes)
+          )
         )
-        .run()
+      }
+
+      await context.env.DB.batch(statements)
     } else {
       await context.env.DB.prepare(
         `
