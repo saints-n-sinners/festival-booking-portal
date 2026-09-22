@@ -16,6 +16,7 @@ import {
   Search,
   X,
 } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import './FestivalsPage.css'
 
 interface Country {
@@ -161,6 +162,8 @@ const emptyFestivalForm: FestivalForm = {
 }
 
 function FestivalsPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [countries, setCountries] = useState<Country[]>([])
   const [festivals, setFestivals] = useState<Festival[]>([])
   const [total, setTotal] = useState(0)
@@ -184,6 +187,23 @@ function FestivalsPage() {
     useState<FestivalForm>(emptyFestivalForm)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+
+    if (params.get('new') !== '1') {
+      return
+    }
+
+    editController.current?.abort()
+    setEditingId(null)
+    setEditorLoading(false)
+    setEditorError('')
+    setFestivalForm(emptyFestivalForm)
+    setSaveError('')
+    setCreateOpen(true)
+    navigate('/festivals', { replace: true })
+  }, [location.search, navigate])
 
   useEffect(() => {
     const controller = new AbortController()

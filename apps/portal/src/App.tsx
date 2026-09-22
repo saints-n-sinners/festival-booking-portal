@@ -197,7 +197,11 @@ function Dashboard() {
           </p>
         </div>
 
-        <button className="primary-button" type="button">
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => navigate('/festivals?new=1')}
+        >
           <CalendarDays size={18} />
           Festival ekle
         </button>
