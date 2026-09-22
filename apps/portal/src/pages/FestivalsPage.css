@@ -198,6 +198,26 @@
   line-height: 1.3;
 }
 
+.festival-edit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 9px;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
+  padding: 5px 9px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.festival-edit-button:hover {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
 .festival-badges {
   display: flex;
   flex-wrap: wrap;
@@ -412,6 +432,15 @@
   border-radius: 18px;
   background: #ffffff;
   box-shadow: 0 30px 90px rgb(0 0 0 / 35%);
+}
+
+.festival-modal > .festivals-message {
+  margin: 22px;
+}
+
+.festival-modal input:disabled {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .festival-modal > header {

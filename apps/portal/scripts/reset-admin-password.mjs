@@ -7,18 +7,95 @@ import {
 } from 'node:process'
 
 const iterations = 100000
+
+if (!input.isTTY || !output.isTTY || !input.setRawMode) {
+  console.error('Parolayı gizli girmek için bu betiği doğrudan Terminal içinde çalıştırın.')
+  process.exit(1)
+}
+
 const readline = createInterface({ input, output })
+let email
 
-const email = (
-  await readline.question('Yönetici e-posta adresi: ')
-)
-  .trim()
-  .toLowerCase()
-
-readline.close()
+try {
+  email = (await readline.question('Kullanıcı e-posta adresi: '))
+    .trim()
+    .toLowerCase()
+} finally {
+  readline.close()
+}
 
 if (!email.includes('@')) {
   console.error('Geçerli bir e-posta adresi girilmedi.')
+  process.exit(1)
+}
+
+function readSecret(prompt) {
+  return new Promise((resolve, reject) => {
+    let secret = ''
+    const wasRaw = input.isRaw ?? false
+
+    function finish(error) {
+      input.off('data', onData)
+      input.setRawMode(wasRaw)
+      input.pause()
+      output.write('\n')
+
+      if (error) {
+        reject(error)
+      } else {
+        resolve(secret)
+      }
+    }
+
+    function onData(chunk) {
+      for (const character of chunk) {
+        if (character === '\r' || character === '\n') {
+          finish()
+          return
+        }
+
+        if (character === '\u0003' || character === '\u0004') {
+          finish(new Error('İşlem iptal edildi.'))
+          return
+        }
+
+        if (character === '\u007f' || character === '\b') {
+          secret = Array.from(secret).slice(0, -1).join('')
+          continue
+        }
+
+        if (character >= ' ' && secret.length < 128) {
+          secret += character
+        }
+      }
+    }
+
+    output.write(prompt)
+    input.setRawMode(true)
+    input.setEncoding('utf8')
+    input.on('data', onData)
+    input.resume()
+  })
+}
+
+let password
+let confirmation
+
+try {
+  password = await readSecret('Yeni parola (yazarken görünmez): ')
+  confirmation = await readSecret('Yeni parola tekrar: ')
+} catch (error) {
+  console.error(error instanceof Error ? error.message : 'İşlem iptal edildi.')
+  process.exit(1)
+}
+
+if (password.length < 8) {
+  console.error('Parola en az 8 karakter olmalıdır.')
+  process.exit(1)
+}
+
+if (password !== confirmation) {
+  console.error('Parolalar eşleşmiyor. Değişiklik yapılmadı.')
   process.exit(1)
 }
 
@@ -71,9 +148,7 @@ if (!user) {
   process.exit(1)
 }
 
-const password = `${randomBytes(18).toString('base64url')}!A7`
 const salt = randomBytes(16).toString('base64')
-
 const passwordHash = pbkdf2Sync(
   password,
   Buffer.from(salt, 'base64'),
@@ -120,8 +195,7 @@ if (updateResult.status !== 0) {
   process.exit(updateResult.status ?? 1)
 }
 
-console.log('\nParola başarıyla sıfırlandı.')
+console.log('\nParola başarıyla değiştirildi.')
 console.log(`Kullanıcı: ${user.display_name}`)
 console.log(`E-posta: ${email}`)
-console.log(`Yeni parola: ${password}`)
-console.log('\nYeni parolayı şimdi güvenli bir parola yöneticisine kaydedin.')
+console.log('Eski oturumlar kapatıldı. Yeni parolayı parola yöneticisine kaydedin.')
