@@ -209,6 +209,16 @@ function countryNameToIso(
     bulgaria: 'BG',
     croatia: 'HR',
 
+    // Caucasus and Central Asia
+    azerbaijan: 'AZ',
+    kazakhstan: 'KZ',
+    kyrgyzstan: 'KG',
+    uzbekistan: 'UZ',
+    turkmenistan: 'TM',
+    tajikistan: 'TJ',
+    georgia: 'GE',
+    armenia: 'AM',
+
     czechia: 'CZ',
     'czech republic': 'CZ',
 
