@@ -14,6 +14,7 @@ interface ImportRequestBody {
 interface CountryRecord {
   id: number
   name: string
+  iso_code: string
 }
 
 interface OrganizerRecord {
@@ -73,20 +74,31 @@ function numberValue(
 
   const parsed = Number.parseFloat(value)
 
-  return Number.isFinite(parsed) ? parsed : null
+  return Number.isFinite(parsed)
+    ? parsed
+    : null
 }
 
 function stretchValue(row: CsvRow): number {
-  const value = (text(row, 'Stretch', 20) ?? '')
+  const value = (
+    text(row, 'Stretch', 20) ?? ''
+  )
     .trim()
     .toLowerCase()
 
-  return ['yes', 'true', '1', 'y'].includes(value)
+  return [
+    'yes',
+    'true',
+    '1',
+    'y',
+  ].includes(value)
     ? 1
     : 0
 }
 
-function validUrl(value: string | null): boolean {
+function validUrl(
+  value: string | null
+): boolean {
   if (!value) {
     return true
   }
@@ -106,7 +118,9 @@ function validUrl(value: string | null): boolean {
 function normalizePriority(
   value: string | null
 ): 'A' | 'B' | 'C' | 'D' {
-  const normalized = (value ?? '')
+  const normalized = (
+    value ?? ''
+  )
     .trim()
     .toUpperCase()
 
@@ -125,7 +139,9 @@ function normalizePriority(
 function normalizeConfidence(
   value: string | null
 ): 'High' | 'Medium' | 'Low' {
-  const normalized = (value ?? '')
+  const normalized = (
+    value ?? ''
+  )
     .trim()
     .toLowerCase()
 
@@ -143,7 +159,9 @@ function normalizeConfidence(
 function normalizeApplicationStatus(
   statusText: string | null
 ): string {
-  const value = (statusText ?? '').toLowerCase()
+  const value = (
+    statusText ?? ''
+  ).toLowerCase()
 
   if (
     value.includes('open') ||
@@ -159,12 +177,20 @@ function normalizeApplicationStatus(
 function safeIsoCode(
   countryName: string
 ): string {
-  const knownCountries: Record<string, string> = {
+  const knownCountries: Record<
+    string,
+    string
+  > = {
     germany: 'DE',
+    deutschland: 'DE',
+
     russia: 'RU',
+    'russian federation': 'RU',
+
     estonia: 'EE',
     lithuania: 'LT',
     italy: 'IT',
+
     france: 'FR',
     spain: 'ES',
     portugal: 'PT',
@@ -172,8 +198,10 @@ function safeIsoCode(
     belgium: 'BE',
     bulgaria: 'BG',
     croatia: 'HR',
+
     czechia: 'CZ',
     'czech republic': 'CZ',
+
     denmark: 'DK',
     finland: 'FI',
     greece: 'GR',
@@ -189,36 +217,93 @@ function safeIsoCode(
     slovenia: 'SI',
     sweden: 'SE',
     switzerland: 'CH',
+
     türkiye: 'TR',
     turkey: 'TR',
+    turkiye: 'TR',
+
     'united kingdom': 'GB',
     uk: 'GB',
+    'great britain': 'GB',
   }
 
-  return knownCountries[countryName.trim().toLowerCase()] ?? ''
+  return (
+    knownCountries[
+      countryName
+        .trim()
+        .toLowerCase()
+    ] ?? ''
+  )
 }
 
 async function getOrCreateCountry(
   env: Env,
   countryName: string
 ): Promise<CountryRecord> {
-  const existing = await env.DB.prepare(
-    `
-      SELECT id, name
-      FROM countries
-      WHERE name = ? COLLATE NOCASE
-      LIMIT 1
-    `
-  )
-    .bind(countryName)
-    .first<CountryRecord>()
+  /*
+   * 1. Önce ülke adına göre ara.
+   */
+  const existingByName =
+    await env.DB.prepare(
+      `
+        SELECT
+          id,
+          name,
+          iso_code
+        FROM countries
+        WHERE name = ? COLLATE NOCASE
+        LIMIT 1
+      `
+    )
+      .bind(countryName)
+      .first<CountryRecord>()
 
-  if (existing) {
-    return existing
+  if (existingByName) {
+    return existingByName
   }
 
-  const isoCode = safeIsoCode(countryName)
+  /*
+   * 2. CSV ülke adı ile DB ülke adı
+   * farklı olabilir.
+   *
+   * Örneğin:
+   * Germany / Deutschland
+   *
+   * Bu nedenle ISO kodunu bulup mevcut
+   * country kaydını ISO üzerinden de
+   * kontrol ediyoruz.
+   */
+  const isoCode =
+    safeIsoCode(countryName)
 
+  if (isoCode) {
+    const existingByIso =
+      await env.DB.prepare(
+        `
+          SELECT
+            id,
+            name,
+            iso_code
+          FROM countries
+          WHERE iso_code = ? COLLATE NOCASE
+          LIMIT 1
+        `
+      )
+        .bind(isoCode)
+        .first<CountryRecord>()
+
+    if (existingByIso) {
+      return existingByIso
+    }
+  }
+
+  /*
+   * 3. Ne isim ne de ISO üzerinden
+   * bulunamadıysa yeni ülke oluştur.
+   *
+   * ISO kodunu bilmiyorsak otomatik
+   * country yaratmıyoruz.
+   */
   if (!isoCode) {
     throw new Error(
       `Ülke sistemde bulunamadı ve ISO kodu bilinmiyor: ${countryName}`
@@ -235,19 +320,26 @@ async function getOrCreateCountry(
       VALUES (?, ?, 1)
     `
   )
-    .bind(countryName, isoCode)
+    .bind(
+      countryName,
+      isoCode
+    )
     .run()
 
-  const created = await env.DB.prepare(
-    `
-      SELECT id, name
-      FROM countries
-      WHERE name = ? COLLATE NOCASE
-      LIMIT 1
-    `
-  )
-    .bind(countryName)
-    .first<CountryRecord>()
+  const created =
+    await env.DB.prepare(
+      `
+        SELECT
+          id,
+          name,
+          iso_code
+        FROM countries
+        WHERE iso_code = ? COLLATE NOCASE
+        LIMIT 1
+      `
+    )
+      .bind(isoCode)
+      .first<CountryRecord>()
 
   if (!created) {
     throw new Error(
@@ -272,18 +364,22 @@ async function getOrCreateOrganizer(
     return null
   }
 
-  const existing = await env.DB.prepare(
-    `
-      SELECT id
-      FROM organizers
-      WHERE country_id = ?
-        AND name = ? COLLATE NOCASE
-        AND is_active = 1
-      LIMIT 1
-    `
-  )
-    .bind(countryId, organizerName)
-    .first<OrganizerRecord>()
+  const existing =
+    await env.DB.prepare(
+      `
+        SELECT id
+        FROM organizers
+        WHERE country_id = ?
+          AND name = ? COLLATE NOCASE
+          AND is_active = 1
+        LIMIT 1
+      `
+    )
+      .bind(
+        countryId,
+        organizerName
+      )
+      .first<OrganizerRecord>()
 
   if (existing) {
     return existing.id
@@ -302,7 +398,17 @@ async function getOrCreateOrganizer(
         phone,
         is_active
       )
-      VALUES (?, ?, 'festival organizer', ?, ?, ?, ?, ?, 1)
+      VALUES (
+        ?,
+        ?,
+        'festival organizer',
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        1
+      )
     `
   )
     .bind(
@@ -316,18 +422,22 @@ async function getOrCreateOrganizer(
     )
     .run()
 
-  const created = await env.DB.prepare(
-    `
-      SELECT id
-      FROM organizers
-      WHERE country_id = ?
-        AND name = ? COLLATE NOCASE
-      ORDER BY id DESC
-      LIMIT 1
-    `
-  )
-    .bind(countryId, organizerName)
-    .first<OrganizerRecord>()
+  const created =
+    await env.DB.prepare(
+      `
+        SELECT id
+        FROM organizers
+        WHERE country_id = ?
+          AND name = ? COLLATE NOCASE
+        ORDER BY id DESC
+        LIMIT 1
+      `
+    )
+      .bind(
+        countryId,
+        organizerName
+      )
+      .first<OrganizerRecord>()
 
   return created?.id ?? null
 }
@@ -335,32 +445,42 @@ async function getOrCreateOrganizer(
 async function nextExternalId(
   env: Env
 ): Promise<string> {
-  const result = await env.DB.prepare(
-    `
-      SELECT external_id
-      FROM festivals
-      WHERE external_id GLOB 'SNS-[0-9]*'
-      ORDER BY
-        CAST(
-          SUBSTR(external_id, 5)
-          AS INTEGER
-        ) DESC
-      LIMIT 1
-    `
-  ).first<MaxExternalIdRecord>()
+  const result =
+    await env.DB.prepare(
+      `
+        SELECT external_id
+        FROM festivals
+        WHERE external_id GLOB 'SNS-[0-9]*'
+        ORDER BY
+          CAST(
+            SUBSTR(
+              external_id,
+              5
+            ) AS INTEGER
+          ) DESC
+        LIMIT 1
+      `
+    ).first<MaxExternalIdRecord>()
 
-  const current = result?.external_id
-    ? Number.parseInt(
-        result.external_id.replace('SNS-', ''),
-        10
-      )
-    : 0
+  const current =
+    result?.external_id
+      ? Number.parseInt(
+          result.external_id.replace(
+            'SNS-',
+            ''
+          ),
+          10
+        )
+      : 0
 
-  const next = Number.isFinite(current)
-    ? current + 1
-    : 1
+  const next =
+    Number.isFinite(current)
+      ? current + 1
+      : 1
 
-  return `SNS-${String(next).padStart(3, '0')}`
+  return `SNS-${String(
+    next
+  ).padStart(3, '0')}`
 }
 
 async function importFestival(
@@ -369,15 +489,26 @@ async function importFestival(
   importBatch: string,
   sourceRow: number
 ): Promise<ImportResult> {
-  const festivalName = text(row, 'Festival', 150)
-  const countryName = text(row, 'Country', 100)
+  const festivalName = text(
+    row,
+    'Festival',
+    150
+  )
+
+  const countryName = text(
+    row,
+    'Country',
+    100
+  )
 
   if (!festivalName) {
     return {
       festival: '—',
-      country: countryName ?? '—',
+      country:
+        countryName ?? '—',
       status: 'failed',
-      reason: 'Festival adı eksik.',
+      reason:
+        'Festival adı eksik.',
     }
   }
 
@@ -386,15 +517,40 @@ async function importFestival(
       festival: festivalName,
       country: '—',
       status: 'failed',
-      reason: 'Ülke bilgisi eksik.',
+      reason:
+        'Ülke bilgisi eksik.',
     }
   }
 
-  const websiteUrl = text(row, 'Website', 500)
-  const facebookUrl = text(row, 'Facebook', 500)
-  const instagramUrl = text(row, 'Instagram', 500)
-  const source1 = text(row, 'Source 1', 500)
-  const source2 = text(row, 'Source 2', 500)
+  const websiteUrl = text(
+    row,
+    'Website',
+    500
+  )
+
+  const facebookUrl = text(
+    row,
+    'Facebook',
+    500
+  )
+
+  const instagramUrl = text(
+    row,
+    'Instagram',
+    500
+  )
+
+  const source1 = text(
+    row,
+    'Source 1',
+    500
+  )
+
+  const source2 = text(
+    row,
+    'Source 2',
+    500
+  )
 
   const urls = [
     websiteUrl,
@@ -404,35 +560,53 @@ async function importFestival(
     source2,
   ]
 
-  if (urls.some((url) => !validUrl(url))) {
+  if (
+    urls.some(
+      (url) => !validUrl(url)
+    )
+  ) {
     return {
       festival: festivalName,
       country: countryName,
       status: 'failed',
-      reason: 'Geçersiz URL bulundu.',
+      reason:
+        'Geçersiz URL bulundu.',
     }
   }
 
-  let createdFestivalId: number | null = null
+  let createdFestivalId:
+    | number
+    | null = null
 
   try {
-    const country = await getOrCreateCountry(
-      env,
-      countryName
-    )
+    const country =
+      await getOrCreateCountry(
+        env,
+        countryName
+      )
 
-    const duplicate = await env.DB.prepare(
-      `
-        SELECT id
-        FROM festivals
-        WHERE country_id = ?
-          AND name = ? COLLATE NOCASE
-          AND is_active = 1
-        LIMIT 1
-      `
-    )
-      .bind(country.id, festivalName)
-      .first<{ id: number }>()
+    /*
+     * Duplicate kontrolü DB'de kayıtlı
+     * gerçek country ID üzerinden yapılır.
+     */
+    const duplicate =
+      await env.DB.prepare(
+        `
+          SELECT id
+          FROM festivals
+          WHERE country_id = ?
+            AND name = ? COLLATE NOCASE
+            AND is_active = 1
+          LIMIT 1
+        `
+      )
+        .bind(
+          country.id,
+          festivalName
+        )
+        .first<{
+          id: number
+        }>()
 
     if (duplicate) {
       return {
@@ -444,35 +618,67 @@ async function importFestival(
       }
     }
 
-    const organizerName = text(
+    const organizerName =
+      text(
+        row,
+        'Organizer',
+        200
+      )
+
+    const email = text(
       row,
-      'Organizer',
-      200
+      'Email',
+      320
     )
 
-    const email = text(row, 'Email', 320)
-    const phone = text(row, 'Phone', 100)
-
-    const organizerId = await getOrCreateOrganizer(
-      env,
-      country.id,
-      organizerName,
-      websiteUrl,
-      instagramUrl,
-      facebookUrl,
-      email,
-      phone
+    const phone = text(
+      row,
+      'Phone',
+      100
     )
 
-    const externalId = await nextExternalId(env)
+    const organizerId =
+      await getOrCreateOrganizer(
+        env,
+        country.id,
+        organizerName,
+        websiteUrl,
+        instagramUrl,
+        facebookUrl,
+        email,
+        phone
+      )
 
-    const city = text(row, 'City', 100) ?? ''
+    const externalId =
+      await nextExternalId(env)
+
+    const city =
+      text(
+        row,
+        'City',
+        100
+      ) ?? ''
+
     const genres =
-      text(row, 'Genres', 500) ?? 'Unknown'
+      text(
+        row,
+        'Genres',
+        500
+      ) ?? 'Unknown'
+
     const scale =
-      text(row, 'Scale', 100) ?? 'Unknown'
+      text(
+        row,
+        'Scale',
+        100
+      ) ?? 'Unknown'
+
     const eventType =
-      text(row, 'Event type', 100) ?? 'festival'
+      text(
+        row,
+        'Event type',
+        100
+      ) ?? 'festival'
 
     await env.DB.prepare(
       `
@@ -493,8 +699,20 @@ async function importFestival(
           scale_category
         )
         VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          1, ?, ?, ?
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          1,
+          ?,
+          ?,
+          ?
         )
       `
     )
@@ -515,16 +733,19 @@ async function importFestival(
       )
       .run()
 
-    const festival = await env.DB.prepare(
-      `
-        SELECT id, external_id
-        FROM festivals
-        WHERE external_id = ?
-        LIMIT 1
-      `
-    )
-      .bind(externalId)
-      .first<FestivalRecord>()
+    const festival =
+      await env.DB.prepare(
+        `
+          SELECT
+            id,
+            external_id
+          FROM festivals
+          WHERE external_id = ?
+          LIMIT 1
+        `
+      )
+        .bind(externalId)
+        .first<FestivalRecord>()
 
     if (!festival) {
       throw new Error(
@@ -532,26 +753,48 @@ async function importFestival(
       )
     }
 
-    createdFestivalId = festival.id
+    createdFestivalId =
+      festival.id
 
-    const priority = normalizePriority(
-      text(row, 'Priority', 10)
-    )
+    const priority =
+      normalizePriority(
+        text(
+          row,
+          'Priority',
+          10
+        )
+      )
 
-    const confidence = normalizeConfidence(
-      text(row, 'Confidence', 20)
-    )
+    const confidence =
+      normalizeConfidence(
+        text(
+          row,
+          'Confidence',
+          20
+        )
+      )
 
     const pipelineStatus =
-      text(row, 'Pipeline status', 100) ??
-      'Monitor'
+      text(
+        row,
+        'Pipeline status',
+        100
+      ) ?? 'Monitor'
 
     const nextAction =
-      text(row, 'Next action', 2000) ??
+      text(
+        row,
+        'Next action',
+        2000
+      ) ??
       'Research booking contact and application window'
 
     const lastVerified =
-      text(row, 'Last verified', 100) ?? null
+      text(
+        row,
+        'Last verified',
+        100
+      )
 
     await env.DB.prepare(
       `
@@ -578,8 +821,26 @@ async function importFestival(
           source_row
         )
         VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?
         )
       `
     )
@@ -587,19 +848,55 @@ async function importFestival(
         festival.id,
         priority,
         stretchValue(row),
-        numberValue(row, 'Score'),
-        numberValue(row, 'Genre (25)'),
-        numberValue(row, 'Foreign (15)'),
-        numberValue(row, 'Career match (15)'),
-        numberValue(row, 'Contact (15)'),
-        numberValue(row, 'Economics (10)'),
-        numberValue(row, 'Route (10)'),
-        numberValue(row, 'Promotion (10)'),
+        numberValue(
+          row,
+          'Score'
+        ),
+        numberValue(
+          row,
+          'Genre (25)'
+        ),
+        numberValue(
+          row,
+          'Foreign (15)'
+        ),
+        numberValue(
+          row,
+          'Career match (15)'
+        ),
+        numberValue(
+          row,
+          'Contact (15)'
+        ),
+        numberValue(
+          row,
+          'Economics (10)'
+        ),
+        numberValue(
+          row,
+          'Route (10)'
+        ),
+        numberValue(
+          row,
+          'Promotion (10)'
+        ),
         confidence,
         pipelineStatus,
-        text(row, 'Foreign band history', 5000),
-        text(row, 'Example artists', 5000),
-        text(row, 'Fit notes', 5000),
+        text(
+          row,
+          'Foreign band history',
+          5000
+        ),
+        text(
+          row,
+          'Example artists',
+          5000
+        ),
+        text(
+          row,
+          'Fit notes',
+          5000
+        ),
         nextAction,
         lastVerified,
         importBatch,
@@ -608,18 +905,25 @@ async function importFestival(
       .run()
 
     const statusText =
-      text(row, '2027 status', 200) ??
-      'Monitor'
+      text(
+        row,
+        '2027 status',
+        200
+      ) ?? 'Monitor'
 
     const dateText =
-      text(row, 'Last / next date', 300) ??
-      'TBA'
+      text(
+        row,
+        'Last / next date',
+        300
+      ) ?? 'TBA'
 
-    const applicationWindow = text(
-      row,
-      'Application window',
-      500
-    )
+    const applicationWindow =
+      text(
+        row,
+        'Application window',
+        500
+      )
 
     await env.DB.prepare(
       `
@@ -631,29 +935,39 @@ async function importFestival(
           date_text,
           application_window_text
         )
-        VALUES (?, 2027, ?, ?, ?, ?)
+        VALUES (
+          ?,
+          2027,
+          ?,
+          ?,
+          ?,
+          ?
+        )
       `
     )
       .bind(
         festival.id,
-        normalizeApplicationStatus(statusText),
+        normalizeApplicationStatus(
+          statusText
+        ),
         statusText,
         dateText,
         applicationWindow
       )
       .run()
 
-    const edition = await env.DB.prepare(
-      `
-        SELECT id
-        FROM festival_editions
-        WHERE festival_id = ?
-          AND edition_year = 2027
-        LIMIT 1
-      `
-    )
-      .bind(festival.id)
-      .first<EditionRecord>()
+    const edition =
+      await env.DB.prepare(
+        `
+          SELECT id
+          FROM festival_editions
+          WHERE festival_id = ?
+            AND edition_year = 2027
+          LIMIT 1
+        `
+      )
+        .bind(festival.id)
+        .first<EditionRecord>()
 
     if (!edition) {
       throw new Error(
@@ -670,7 +984,12 @@ async function importFestival(
             source_order,
             last_verified
           )
-          VALUES (?, ?, 1, ?)
+          VALUES (
+            ?,
+            ?,
+            1,
+            ?
+          )
         `
       )
         .bind(
@@ -681,7 +1000,10 @@ async function importFestival(
         .run()
     }
 
-    if (source2 && source2 !== source1) {
+    if (
+      source2 &&
+      source2 !== source1
+    ) {
       await env.DB.prepare(
         `
           INSERT OR IGNORE INTO festival_sources (
@@ -690,7 +1012,12 @@ async function importFestival(
             source_order,
             last_verified
           )
-          VALUES (?, ?, 2, ?)
+          VALUES (
+            ?,
+            ?,
+            2,
+            ?
+          )
         `
       )
         .bind(
@@ -713,7 +1040,15 @@ async function importFestival(
             preferred_channel,
             verified_at
           )
-          VALUES (?, ?, 'Booking', ?, ?, ?, ?)
+          VALUES (
+            ?,
+            ?,
+            'Booking',
+            ?,
+            ?,
+            ?,
+            ?
+          )
         `
       )
         .bind(
@@ -721,14 +1056,20 @@ async function importFestival(
           organizerId,
           email,
           phone,
-          email ? 'email' : 'phone',
+          email
+            ? 'email'
+            : 'phone',
           lastVerified
         )
         .run()
     }
 
     const applicationMethod =
-      text(row, 'Application method', 2000) ??
+      text(
+        row,
+        'Application method',
+        2000
+      ) ??
       'Direct contact / research required'
 
     await env.DB.prepare(
@@ -763,7 +1104,8 @@ async function importFestival(
       festival: festivalName,
       country: countryName,
       status: 'imported',
-      external_id: festival.external_id,
+      external_id:
+        festival.external_id,
     }
   } catch (error) {
     console.error(
@@ -771,7 +1113,17 @@ async function importFestival(
       error
     )
 
-    if (createdFestivalId !== null) {
+    /*
+     * Festival oluşturulduktan sonraki
+     * adımlardan biri başarısız olduysa
+     * festival silinir.
+     *
+     * Bağlı edition/research/source/contact
+     * kayıtları FK cascade ile temizlenir.
+     */
+    if (
+      createdFestivalId !== null
+    ) {
       try {
         await env.DB.prepare(
           `
@@ -779,7 +1131,9 @@ async function importFestival(
             WHERE id = ?
           `
         )
-          .bind(createdFestivalId)
+          .bind(
+            createdFestivalId
+          )
           .run()
       } catch (cleanupError) {
         console.error(
@@ -801,151 +1155,193 @@ async function importFestival(
   }
 }
 
-export const onRequestPost: PagesFunction<Env> = async (
-  context
-) => {
-  const currentUser = await getCurrentUser(
-    context.request,
-    context.env
-  )
+export const onRequestPost:
+  PagesFunction<Env> = async (
+    context
+  ) => {
+    const currentUser =
+      await getCurrentUser(
+        context.request,
+        context.env
+      )
 
-  if (!currentUser) {
-    return Response.json(
-      {
-        success: false,
-        error: 'Oturum gerekli.',
-      },
-      {
-        status: 401,
-      }
-    )
-  }
-
-  let body: ImportRequestBody
-
-  try {
-    body =
-      (await context.request.json()) as ImportRequestBody
-  } catch {
-    return Response.json(
-      {
-        success: false,
-        error: 'Geçersiz JSON isteği.',
-      },
-      {
-        status: 400,
-      }
-    )
-  }
-
-  if (!Array.isArray(body.rows)) {
-    return Response.json(
-      {
-        success: false,
-        error: 'Import için rows dizisi gerekli.',
-      },
-      {
-        status: 400,
-      }
-    )
-  }
-
-  if (body.rows.length === 0) {
-    return Response.json(
-      {
-        success: false,
-        error: 'Import edilecek kayıt bulunamadı.',
-      },
-      {
-        status: 400,
-      }
-    )
-  }
-
-  if (body.rows.length > 200) {
-    return Response.json(
-      {
-        success: false,
-        error:
-          'Tek seferde en fazla 200 festival import edilebilir.',
-      },
-      {
-        status: 400,
-      }
-    )
-  }
-
-  const rows = body.rows.filter(
-    (row): row is CsvRow =>
-      typeof row === 'object' &&
-      row !== null &&
-      !Array.isArray(row)
-  )
-
-  if (rows.length !== body.rows.length) {
-    return Response.json(
-      {
-        success: false,
-        error:
-          'Import verisinde geçersiz satırlar bulundu.',
-      },
-      {
-        status: 400,
-      }
-    )
-  }
-
-  const importBatch =
-    `portal:${new Date().toISOString()}:${currentUser.email}`
-
-  const results: ImportResult[] = []
-
-  /*
-   * Sequential import is intentional.
-   *
-   * nextExternalId() depends on the previous festival
-   * already existing in D1. Running these in parallel
-   * could generate duplicate external IDs.
-   */
-  for (let index = 0; index < rows.length; index += 1) {
-    const result = await importFestival(
-      context.env,
-      rows[index],
-      importBatch,
-      index + 1
-    )
-
-    results.push(result)
-  }
-
-  const imported = results.filter(
-    (result) => result.status === 'imported'
-  ).length
-
-  const skipped = results.filter(
-    (result) => result.status === 'skipped'
-  ).length
-
-  const failed = results.filter(
-    (result) => result.status === 'failed'
-  ).length
-
-  return Response.json(
-    {
-      success: failed === 0,
-      summary: {
-        requested: rows.length,
-        imported,
-        skipped,
-        failed,
-      },
-      results,
-    },
-    {
-      status: failed === 0 ? 200 : 207,
-      headers: {
-        'Cache-Control': 'no-store',
-      },
+    if (!currentUser) {
+      return Response.json(
+        {
+          success: false,
+          error:
+            'Oturum gerekli.',
+        },
+        {
+          status: 401,
+        }
+      )
     }
-  )
-}
+
+    let body: ImportRequestBody
+
+    try {
+      body =
+        (await context.request.json()) as ImportRequestBody
+    } catch {
+      return Response.json(
+        {
+          success: false,
+          error:
+            'Geçersiz JSON isteği.',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    if (
+      !Array.isArray(body.rows)
+    ) {
+      return Response.json(
+        {
+          success: false,
+          error:
+            'Import için rows dizisi gerekli.',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    if (
+      body.rows.length === 0
+    ) {
+      return Response.json(
+        {
+          success: false,
+          error:
+            'Import edilecek kayıt bulunamadı.',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    if (
+      body.rows.length > 200
+    ) {
+      return Response.json(
+        {
+          success: false,
+          error:
+            'Tek seferde en fazla 200 festival import edilebilir.',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    const rows =
+      body.rows.filter(
+        (
+          row
+        ): row is CsvRow =>
+          typeof row ===
+            'object' &&
+          row !== null &&
+          !Array.isArray(row)
+      )
+
+    if (
+      rows.length !==
+      body.rows.length
+    ) {
+      return Response.json(
+        {
+          success: false,
+          error:
+            'Import verisinde geçersiz satırlar bulundu.',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    const importBatch =
+      `portal:${new Date().toISOString()}:${currentUser.email}`
+
+    const results:
+      ImportResult[] = []
+
+    /*
+     * Sequential çalıştırıyoruz.
+     *
+     * External ID üretimi önceki festivalin
+     * DB'ye yazılmış olmasına bağlı.
+     */
+    for (
+      let index = 0;
+      index < rows.length;
+      index += 1
+    ) {
+      const result =
+        await importFestival(
+          context.env,
+          rows[index],
+          importBatch,
+          index + 1
+        )
+
+      results.push(result)
+    }
+
+    const imported =
+      results.filter(
+        (result) =>
+          result.status ===
+          'imported'
+      ).length
+
+    const skipped =
+      results.filter(
+        (result) =>
+          result.status ===
+          'skipped'
+      ).length
+
+    const failed =
+      results.filter(
+        (result) =>
+          result.status ===
+          'failed'
+      ).length
+
+    return Response.json(
+      {
+        success:
+          failed === 0,
+
+        summary: {
+          requested:
+            rows.length,
+          imported,
+          skipped,
+          failed,
+        },
+
+        results,
+      },
+      {
+        status:
+          failed === 0
+            ? 200
+            : 207,
+
+        headers: {
+          'Cache-Control':
+            'no-store',
+        },
+      }
+    )
+  }
