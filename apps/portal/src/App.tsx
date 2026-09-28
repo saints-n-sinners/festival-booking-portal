@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ChevronRight,
   ClipboardList,
+  Database,
   Globe2,
   LayoutDashboard,
   LogOut,
@@ -27,6 +28,7 @@ import CountriesPage from './pages/CountriesPage'
 import './App.css'
 import FestivalsPage from './pages/FestivalsPage'
 import ApplicationsPage from './pages/ApplicationsPage'
+import ImportPage from './pages/ImportPage'
 
 const navigation = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -35,6 +37,7 @@ const navigation = [
   { name: 'Başvurular', path: '/applications', icon: Send },
   { name: 'Keşif Merkezi', path: '/discoveries', icon: Radar },
   { name: 'Organizatörler', path: '/organizers', icon: Users },
+  { name: 'CSV Import', path: '/import', icon: Database },
 ]
 
 type MetricCardProps = {
@@ -528,6 +531,8 @@ function PortalLayout() {
               path="/applications"
               element={<ApplicationsPage />}
             />
+
+            <Route path="/import" element={<ImportPage />} />
 
             <Route
               path="/discoveries"
