@@ -19,6 +19,7 @@ type ExistingFestival = {
   external_id: string
   name: string
   country: string
+  country_code: string
 }
 
 type FestivalsResponse = {
@@ -34,6 +35,7 @@ type AnalyzedRow = {
   reason: string
   festivalName: string
   country: string
+  countryCode: string
   selected: boolean
   existingFestival?: ExistingFestival
 }
@@ -67,12 +69,19 @@ function parseCsv(text: string): {
   let currentValue = ''
   let insideQuotes = false
 
-  for (let index = 0; index < text.length; index += 1) {
+  for (
+    let index = 0;
+    index < text.length;
+    index += 1
+  ) {
     const character = text[index]
     const nextCharacter = text[index + 1]
 
     if (character === '"') {
-      if (insideQuotes && nextCharacter === '"') {
+      if (
+        insideQuotes &&
+        nextCharacter === '"'
+      ) {
         currentValue += '"'
         index += 1
       } else {
@@ -82,24 +91,42 @@ function parseCsv(text: string): {
       continue
     }
 
-    if (character === ',' && !insideQuotes) {
-      currentRow.push(currentValue.trim())
+    if (
+      character === ',' &&
+      !insideQuotes
+    ) {
+      currentRow.push(
+        currentValue.trim()
+      )
       currentValue = ''
       continue
     }
 
     if (
-      (character === '\n' || character === '\r') &&
+      (
+        character === '\n' ||
+        character === '\r'
+      ) &&
       !insideQuotes
     ) {
-      if (character === '\r' && nextCharacter === '\n') {
+      if (
+        character === '\r' &&
+        nextCharacter === '\n'
+      ) {
         index += 1
       }
 
-      currentRow.push(currentValue.trim())
+      currentRow.push(
+        currentValue.trim()
+      )
+
       currentValue = ''
 
-      if (currentRow.some((value) => value !== '')) {
+      if (
+        currentRow.some(
+          (value) => value !== ''
+        )
+      ) {
         lines.push(currentRow)
       }
 
@@ -110,9 +137,15 @@ function parseCsv(text: string): {
     currentValue += character
   }
 
-  currentRow.push(currentValue.trim())
+  currentRow.push(
+    currentValue.trim()
+  )
 
-  if (currentRow.some((value) => value !== '')) {
+  if (
+    currentRow.some(
+      (value) => value !== ''
+    )
+  ) {
     lines.push(currentRow)
   }
 
@@ -123,19 +156,27 @@ function parseCsv(text: string): {
     }
   }
 
-  const headers = lines[0].map((header) =>
-    header.replace(/^\uFEFF/, '').trim()
+  const headers = lines[0].map(
+    (header) =>
+      header
+        .replace(/^\uFEFF/, '')
+        .trim()
   )
 
-  const rows = lines.slice(1).map((values) => {
-    const row: CsvRow = {}
+  const rows = lines
+    .slice(1)
+    .map((values) => {
+      const row: CsvRow = {}
 
-    headers.forEach((header, index) => {
-      row[header] = values[index] ?? ''
+      headers.forEach(
+        (header, index) => {
+          row[header] =
+            values[index] ?? ''
+        }
+      )
+
+      return row
     })
-
-    return row
-  })
 
   return {
     headers,
@@ -143,10 +184,99 @@ function parseCsv(text: string): {
   }
 }
 
+function countryNameToIso(
+  countryName: string
+): string {
+  const countries: Record<
+    string,
+    string
+  > = {
+    germany: 'DE',
+    deutschland: 'DE',
+
+    russia: 'RU',
+    'russian federation': 'RU',
+
+    estonia: 'EE',
+    lithuania: 'LT',
+    italy: 'IT',
+
+    france: 'FR',
+    spain: 'ES',
+    portugal: 'PT',
+    austria: 'AT',
+    belgium: 'BE',
+    bulgaria: 'BG',
+    croatia: 'HR',
+
+    czechia: 'CZ',
+    'czech republic': 'CZ',
+
+    denmark: 'DK',
+    finland: 'FI',
+    greece: 'GR',
+    hungary: 'HU',
+    ireland: 'IE',
+    latvia: 'LV',
+    netherlands: 'NL',
+    norway: 'NO',
+    poland: 'PL',
+    romania: 'RO',
+    serbia: 'RS',
+    slovakia: 'SK',
+    slovenia: 'SI',
+    sweden: 'SE',
+    switzerland: 'CH',
+
+    türkiye: 'TR',
+    turkiye: 'TR',
+    turkey: 'TR',
+
+    'united kingdom': 'GB',
+    'great britain': 'GB',
+    uk: 'GB',
+  }
+
+  const normalized =
+    countryName
+      .trim()
+      .toLowerCase()
+
+  /*
+   * CSV ileride doğrudan ISO kodu
+   * içerirse onu da kabul ediyoruz.
+   */
+  if (
+    normalized.length === 2 &&
+    /^[a-z]{2}$/.test(normalized)
+  ) {
+    return normalized.toUpperCase()
+  }
+
+  return countries[normalized] ?? ''
+}
+
+function sameFestivalName(
+  first: string,
+  second: string
+): boolean {
+  return (
+    first.localeCompare(
+      second,
+      undefined,
+      {
+        sensitivity: 'base',
+      }
+    ) === 0
+  )
+}
+
 async function loadExistingFestivals(): Promise<
   ExistingFestival[]
 > {
-  const festivals: ExistingFestival[] = []
+  const festivals:
+    ExistingFestival[] = []
+
   const limit = 200
   let offset = 0
 
@@ -155,23 +285,32 @@ async function loadExistingFestivals(): Promise<
       `/api/festivals?limit=${limit}&offset=${offset}`,
       {
         credentials: 'same-origin',
+        cache: 'no-store',
       }
     )
 
-    const data = (await response.json()) as FestivalsResponse
+    const data =
+      (await response.json()) as FestivalsResponse
 
-    if (!response.ok || !data.success) {
+    if (
+      !response.ok ||
+      !data.success
+    ) {
       throw new Error(
         data.error ||
           'Mevcut festival kayıtları yüklenemedi.'
       )
     }
 
-    festivals.push(...data.festivals)
+    festivals.push(
+      ...data.festivals
+    )
 
     if (
-      data.festivals.length < limit ||
-      festivals.length >= data.total
+      data.festivals.length <
+        limit ||
+      festivals.length >=
+        data.total
     ) {
       break
     }
@@ -183,35 +322,66 @@ async function loadExistingFestivals(): Promise<
 }
 
 function ImportPage() {
-  const [fileName, setFileName] = useState('')
-  const [headers, setHeaders] = useState<string[]>([])
-  const [rows, setRows] = useState<CsvRow[]>([])
-  const [error, setError] = useState('')
+  const [
+    fileName,
+    setFileName,
+  ] = useState('')
 
-  const [analyzedRows, setAnalyzedRows] = useState<
-    AnalyzedRow[]
-  >([])
+  const [
+    headers,
+    setHeaders,
+  ] = useState<string[]>([])
 
-  const [analyzing, setAnalyzing] = useState(false)
-  const [importing, setImporting] = useState(false)
+  const [
+    rows,
+    setRows,
+  ] = useState<CsvRow[]>([])
 
-  const [importResults, setImportResults] = useState<
-    ImportResult[]
-  >([])
+  const [
+    error,
+    setError,
+  ] = useState('')
 
-  const [importSummary, setImportSummary] = useState<
+  const [
+    analyzedRows,
+    setAnalyzedRows,
+  ] = useState<AnalyzedRow[]>([])
+
+  const [
+    analyzing,
+    setAnalyzing,
+  ] = useState(false)
+
+  const [
+    importing,
+    setImporting,
+  ] = useState(false)
+
+  const [
+    importResults,
+    setImportResults,
+  ] = useState<ImportResult[]>([])
+
+  const [
+    importSummary,
+    setImportSummary,
+  ] = useState<
     ImportResponse['summary'] | null
   >(null)
 
-  async function analyzeRows(csvRows: CsvRow[]) {
+  async function analyzeRows(
+    csvRows: CsvRow[]
+  ) {
     setAnalyzing(true)
+    setError('')
 
     try {
       const existingFestivals =
         await loadExistingFestivals()
 
-      const analyzed: AnalyzedRow[] = csvRows.map(
-        (row) => {
+      const analyzed:
+        AnalyzedRow[] =
+        csvRows.map((row) => {
           const festivalName = (
             row.Festival ?? ''
           ).trim()
@@ -224,9 +394,12 @@ function ImportPage() {
             return {
               row,
               status: 'error',
-              reason: 'Festival adı eksik.',
+              reason:
+                'Festival adı eksik.',
               festivalName: '—',
-              country: country || '—',
+              country:
+                country || '—',
+              countryCode: '',
               selected: false,
             }
           }
@@ -235,39 +408,83 @@ function ImportPage() {
             return {
               row,
               status: 'error',
-              reason: 'Ülke bilgisi eksik.',
+              reason:
+                'Ülke bilgisi eksik.',
               festivalName,
               country: '—',
+              countryCode: '',
               selected: false,
             }
           }
 
-          const existingFestival =
-            existingFestivals.find(
-              (festival) =>
-                festival.name.localeCompare(
-                  festivalName,
-                  undefined,
-                  {
-                    sensitivity: 'base',
-                  }
-                ) === 0 &&
-                festival.country.localeCompare(
-                  country,
-                  undefined,
-                  {
-                    sensitivity: 'base',
-                  }
-                ) === 0
+          const countryCode =
+            countryNameToIso(
+              country
             )
+
+          /*
+           * Öncelikli duplicate kontrolü:
+           *
+           * Festival adı + ISO country code
+           *
+           * Böylece:
+           * Germany / Deutschland
+           * Turkey / Türkiye
+           *
+           * gibi isim farklılıkları
+           * duplicate kontrolünü bozmaz.
+           */
+          let existingFestival:
+            | ExistingFestival
+            | undefined
+
+          if (countryCode) {
+            existingFestival =
+              existingFestivals.find(
+                (festival) =>
+                  sameFestivalName(
+                    festival.name,
+                    festivalName
+                  ) &&
+                  (
+                    festival.country_code ??
+                    ''
+                  ).toUpperCase() ===
+                    countryCode
+              )
+          } else {
+            /*
+             * ISO eşlemesi bilinmeyen
+             * ülkelerde eski davranışı
+             * fallback olarak koruyoruz.
+             */
+            existingFestival =
+              existingFestivals.find(
+                (festival) =>
+                  sameFestivalName(
+                    festival.name,
+                    festivalName
+                  ) &&
+                  festival.country.localeCompare(
+                    country,
+                    undefined,
+                    {
+                      sensitivity:
+                        'base',
+                    }
+                  ) === 0
+              )
+          }
 
           if (existingFestival) {
             return {
               row,
               status: 'exists',
-              reason: `Mevcut kayıt: ${existingFestival.external_id}`,
+              reason:
+                `Mevcut kayıt: ${existingFestival.external_id}`,
               festivalName,
               country,
+              countryCode,
               selected: false,
               existingFestival,
             }
@@ -276,20 +493,28 @@ function ImportPage() {
           return {
             row,
             status: 'new',
-            reason: 'Yeni festival',
+            reason:
+              countryCode
+                ? `Yeni festival · ${countryCode}`
+                : 'Yeni festival',
             festivalName,
             country,
+            countryCode,
             selected: true,
           }
-        }
-      )
+        })
 
-      setAnalyzedRows(analyzed)
-    } catch (analysisError) {
+      setAnalyzedRows(
+        analyzed
+      )
+    } catch (
+      analysisError
+    ) {
       setAnalyzedRows([])
 
       setError(
-        analysisError instanceof Error
+        analysisError instanceof
+          Error
           ? analysisError.message
           : 'Festival kayıtları karşılaştırılamadı.'
       )
@@ -299,9 +524,11 @@ function ImportPage() {
   }
 
   async function handleFileChange(
-    event: React.ChangeEvent<HTMLInputElement>
+    event:
+      React.ChangeEvent<HTMLInputElement>
   ) {
-    const file = event.target.files?.[0]
+    const file =
+      event.target.files?.[0]
 
     setError('')
     setHeaders([])
@@ -315,25 +542,37 @@ function ImportPage() {
       return
     }
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
+    if (
+      !file.name
+        .toLowerCase()
+        .endsWith('.csv')
+    ) {
       setError(
         'Lütfen CSV formatında bir dosya seçin.'
       )
+
       event.target.value = ''
       return
     }
 
     try {
-      const text = await file.text()
-      const parsed = parseCsv(text)
+      const fileText =
+        await file.text()
 
-      if (parsed.headers.length === 0) {
+      const parsed =
+        parseCsv(fileText)
+
+      if (
+        parsed.headers.length === 0
+      ) {
         throw new Error(
           'CSV dosyasında kolon bulunamadı.'
         )
       }
 
-      if (parsed.rows.length === 0) {
+      if (
+        parsed.rows.length === 0
+      ) {
         throw new Error(
           'CSV dosyasında veri satırı bulunamadı.'
         )
@@ -347,10 +586,14 @@ function ImportPage() {
       const missingColumns =
         requiredColumns.filter(
           (column) =>
-            !parsed.headers.includes(column)
+            !parsed.headers.includes(
+              column
+            )
         )
 
-      if (missingColumns.length > 0) {
+      if (
+        missingColumns.length > 0
+      ) {
         throw new Error(
           `CSV dosyasında zorunlu kolonlar eksik: ${missingColumns.join(
             ', '
@@ -359,10 +602,14 @@ function ImportPage() {
       }
 
       setFileName(file.name)
-      setHeaders(parsed.headers)
+      setHeaders(
+        parsed.headers
+      )
       setRows(parsed.rows)
 
-      await analyzeRows(parsed.rows)
+      await analyzeRows(
+        parsed.rows
+      )
     } catch (fileError) {
       setError(
         fileError instanceof Error
@@ -383,9 +630,12 @@ function ImportPage() {
     setImportSummary(null)
     setError('')
 
-    const input = document.getElementById(
-      'festival-csv-file'
-    ) as HTMLInputElement | null
+    const input =
+      document.getElementById(
+        'festival-csv-file'
+      ) as
+        | HTMLInputElement
+        | null
 
     if (input) {
       input.value = ''
@@ -396,54 +646,64 @@ function ImportPage() {
     rowIndex: number,
     selected: boolean
   ) {
-    setAnalyzedRows((current) =>
-      current.map((row, index) =>
-        index === rowIndex
-          ? {
-              ...row,
-              selected,
-            }
-          : row
-      )
+    setAnalyzedRows(
+      (current) =>
+        current.map(
+          (row, index) =>
+            index === rowIndex
+              ? {
+                  ...row,
+                  selected,
+                }
+              : row
+        )
     )
   }
 
   function selectAllNew() {
-    setAnalyzedRows((current) =>
-      current.map((row) => ({
-        ...row,
-        selected:
-          row.status === 'new',
-      }))
+    setAnalyzedRows(
+      (current) =>
+        current.map((row) => ({
+          ...row,
+          selected:
+            row.status ===
+            'new',
+        }))
     )
   }
 
   function clearSelection() {
-    setAnalyzedRows((current) =>
-      current.map((row) => ({
-        ...row,
-        selected: false,
-      }))
+    setAnalyzedRows(
+      (current) =>
+        current.map((row) => ({
+          ...row,
+          selected: false,
+        }))
     )
   }
 
   async function handleImport() {
-    const selectedRows = analyzedRows.filter(
-      (item) =>
-        item.status === 'new' &&
-        item.selected
-    )
+    const selectedRows =
+      analyzedRows.filter(
+        (item) =>
+          item.status ===
+            'new' &&
+          item.selected
+      )
 
-    if (selectedRows.length === 0) {
+    if (
+      selectedRows.length === 0
+    ) {
       setError(
         'Import için en az bir NEW festival seçmelisiniz.'
       )
       return
     }
 
-    const confirmed = window.confirm(
-      `${selectedRows.length} festival D1 veritabanına eklenecek.\n\nDevam etmek istiyor musunuz?`
-    )
+    const confirmed =
+      window.confirm(
+        `${selectedRows.length} festival D1 veritabanına eklenecek.\n\nDevam etmek istiyor musunuz?`
+      )
 
     if (!confirmed) {
       return
@@ -455,21 +715,29 @@ function ImportPage() {
     setImportSummary(null)
 
     try {
-      const response = await fetch(
-        '/api/import/festivals',
-        {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            rows: selectedRows.map(
-              (item) => item.row
-            ),
-          }),
-        }
-      )
+      const response =
+        await fetch(
+          '/api/import/festivals',
+          {
+            method: 'POST',
+
+            credentials:
+              'same-origin',
+
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
+
+            body: JSON.stringify({
+              rows:
+                selectedRows.map(
+                  (item) =>
+                    item.row
+                ),
+            }),
+          }
+        )
 
       const data =
         (await response.json()) as ImportResponse
@@ -484,20 +752,27 @@ function ImportPage() {
         )
       }
 
-      setImportResults(data.results ?? [])
-      setImportSummary(data.summary ?? null)
+      setImportResults(
+        data.results ?? []
+      )
+
+      setImportSummary(
+        data.summary ?? null
+      )
 
       /*
-       * Import tamamlandıktan sonra CSV'yi
-       * mevcut DB ile tekrar karşılaştırıyoruz.
+       * Import bittikten sonra
+       * mevcut D1 verisini yeniden
+       * çekiyoruz.
        *
-       * Başarıyla eklenen kayıtlar artık
-       * EXISTS olarak görünmelidir.
+       * Başarıyla eklenen festival
+       * artık EXISTS görünmelidir.
        */
       await analyzeRows(rows)
     } catch (importError) {
       setError(
-        importError instanceof Error
+        importError instanceof
+          Error
           ? importError.message
           : 'Festival import işlemi başarısız oldu.'
       )
@@ -506,25 +781,36 @@ function ImportPage() {
     }
   }
 
-  const previewRows = rows.slice(0, 5)
+  const previewRows =
+    rows.slice(0, 5)
 
-  const newCount = analyzedRows.filter(
-    (item) => item.status === 'new'
-  ).length
+  const newCount =
+    analyzedRows.filter(
+      (item) =>
+        item.status === 'new'
+    ).length
 
-  const existingCount = analyzedRows.filter(
-    (item) => item.status === 'exists'
-  ).length
+  const existingCount =
+    analyzedRows.filter(
+      (item) =>
+        item.status ===
+        'exists'
+    ).length
 
-  const errorCount = analyzedRows.filter(
-    (item) => item.status === 'error'
-  ).length
+  const errorCount =
+    analyzedRows.filter(
+      (item) =>
+        item.status ===
+        'error'
+    ).length
 
-  const selectedCount = analyzedRows.filter(
-    (item) =>
-      item.status === 'new' &&
-      item.selected
-  ).length
+  const selectedCount =
+    analyzedRows.filter(
+      (item) =>
+        item.status ===
+          'new' &&
+        item.selected
+    ).length
 
   return (
     <>
@@ -537,25 +823,33 @@ function ImportPage() {
           <h1>CSV Import</h1>
 
           <p>
-            Festival araştırmalarından oluşturulan
-            CSV dosyalarını kontrol ederek portala
-            aktarın.
+            Festival
+            araştırmalarından
+            oluşturulan CSV
+            dosyalarını kontrol
+            ederek portala aktarın.
           </p>
         </div>
       </section>
 
       <section className="import-panel">
         <div className="import-icon">
-          <FileSpreadsheet size={32} />
+          <FileSpreadsheet
+            size={32}
+          />
         </div>
 
         <div className="import-copy">
-          <h2>Festival CSV dosyası</h2>
+          <h2>
+            Festival CSV dosyası
+          </h2>
 
           <p>
-            Yeni bulunan festivalleri önce
-            önizleyin, ardından istediğiniz
-            kayıtları veritabanına aktarın.
+            Yeni bulunan
+            festivalleri önce
+            önizleyin, ardından
+            istediğiniz kayıtları
+            veritabanına aktarın.
           </p>
         </div>
 
@@ -569,7 +863,9 @@ function ImportPage() {
             type="file"
             accept=".csv,text/csv"
             onChange={(event) =>
-              void handleFileChange(event)
+              void handleFileChange(
+                event
+              )
             }
           />
         </label>
@@ -586,7 +882,9 @@ function ImportPage() {
         {fileName && (
           <div className="selected-file">
             <div>
-              <FileSpreadsheet size={20} />
+              <FileSpreadsheet
+                size={20}
+              />
 
               <div>
                 <strong>
@@ -594,16 +892,22 @@ function ImportPage() {
                 </strong>
 
                 <span>
-                  {rows.length} kayıt ·{' '}
-                  {headers.length} kolon
+                  {rows.length}{' '}
+                  kayıt ·{' '}
+                  {headers.length}{' '}
+                  kolon
                 </span>
               </div>
             </div>
 
             <button
               type="button"
-              onClick={clearFile}
-              disabled={importing}
+              onClick={
+                clearFile
+              }
+              disabled={
+                importing
+              }
               aria-label="CSV dosyasını kaldır"
               title="Dosyayı kaldır"
             >
@@ -619,10 +923,12 @@ function ImportPage() {
             </strong>
 
             <span>
-              Dosya seçildiğinde veriler
-              doğrudan veritabanına
-              yazılmayacak. Önce kontrol ve
-              önizleme ekranı gösterilecek.
+              Dosya seçildiğinde
+              veriler doğrudan
+              veritabanına
+              yazılmayacak. Önce
+              kontrol ve önizleme
+              ekranı gösterilecek.
             </span>
           </div>
         )}
@@ -632,10 +938,14 @@ function ImportPage() {
         <section className="import-preview">
           <div className="import-preview-header">
             <div>
-              <TableProperties size={22} />
+              <TableProperties
+                size={22}
+              />
 
               <div>
-                <h2>CSV Önizleme</h2>
+                <h2>
+                  CSV Önizleme
+                </h2>
 
                 <p>
                   İlk{' '}
@@ -643,8 +953,11 @@ function ImportPage() {
                     5,
                     rows.length
                   )}{' '}
-                  kayıt gösteriliyor. Toplam{' '}
-                  {rows.length} kayıt bulundu.
+                  kayıt
+                  gösteriliyor.
+                  Toplam{' '}
+                  {rows.length}{' '}
+                  kayıt bulundu.
                 </p>
               </div>
             </div>
@@ -652,15 +965,22 @@ function ImportPage() {
 
           <div className="detected-columns">
             <strong>
-              Tespit edilen kolonlar
+              Tespit edilen
+              kolonlar
             </strong>
 
             <div>
-              {headers.map((header) => (
-                <span key={header}>
-                  {header}
-                </span>
-              ))}
+              {headers.map(
+                (header) => (
+                  <span
+                    key={
+                      header
+                    }
+                  >
+                    {header}
+                  </span>
+                )
+              )}
             </div>
           </div>
 
@@ -668,22 +988,43 @@ function ImportPage() {
             <table className="preview-table">
               <thead>
                 <tr>
-                  {headers.map((header) => (
-                    <th key={header}>
-                      {header}
-                    </th>
-                  ))}
+                  {headers.map(
+                    (header) => (
+                      <th
+                        key={
+                          header
+                        }
+                      >
+                        {header}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
 
               <tbody>
                 {previewRows.map(
-                  (row, rowIndex) => (
-                    <tr key={rowIndex}>
+                  (
+                    row,
+                    rowIndex
+                  ) => (
+                    <tr
+                      key={
+                        rowIndex
+                      }
+                    >
                       {headers.map(
-                        (header) => (
-                          <td key={header}>
-                            {row[header] ||
+                        (
+                          header
+                        ) => (
+                          <td
+                            key={
+                              header
+                            }
+                          >
+                            {row[
+                              header
+                            ] ||
                               '—'}
                           </td>
                         )
@@ -700,26 +1041,31 @@ function ImportPage() {
       {analyzing && (
         <section className="import-analysis">
           <strong>
-            Festival kayıtları kontrol
-            ediliyor…
+            Festival kayıtları
+            kontrol ediliyor…
           </strong>
 
           <span>
-            CSV kayıtları mevcut portal
-            verileriyle karşılaştırılıyor.
+            CSV kayıtları mevcut
+            portal verileriyle
+            karşılaştırılıyor.
           </span>
         </section>
       )}
 
       {!analyzing &&
-        analyzedRows.length > 0 && (
+        analyzedRows.length >
+          0 && (
           <section className="import-analysis">
             <div className="analysis-heading">
               <div>
-                <h2>Import Preview</h2>
+                <h2>
+                  Import Preview
+                </h2>
 
                 <p>
-                  CSV kayıtları mevcut festival
+                  CSV kayıtları
+                  mevcut festival
                   veritabanıyla
                   karşılaştırıldı.
                 </p>
@@ -730,21 +1076,29 @@ function ImportPage() {
                   <strong>
                     {newCount}
                   </strong>
-                  <span>NEW</span>
+                  <span>
+                    NEW
+                  </span>
                 </div>
 
                 <div className="analysis-count analysis-exists">
                   <strong>
-                    {existingCount}
+                    {
+                      existingCount
+                    }
                   </strong>
-                  <span>EXISTS</span>
+                  <span>
+                    EXISTS
+                  </span>
                 </div>
 
                 <div className="analysis-count analysis-error">
                   <strong>
                     {errorCount}
                   </strong>
-                  <span>ERROR</span>
+                  <span>
+                    ERROR
+                  </span>
                 </div>
               </div>
             </div>
@@ -752,34 +1106,46 @@ function ImportPage() {
             <div className="selection-summary">
               <div>
                 <strong>
-                  {selectedCount} festival
-                  import için seçildi
+                  {
+                    selectedCount
+                  }{' '}
+                  festival import
+                  için seçildi
                 </strong>
 
                 <span>
-                  Yalnızca NEW durumundaki
-                  kayıtlar seçilebilir.
+                  Yalnızca NEW
+                  durumundaki
+                  kayıtlar
+                  seçilebilir.
                 </span>
               </div>
 
               <div className="selection-actions">
                 <button
                   type="button"
-                  onClick={selectAllNew}
+                  onClick={
+                    selectAllNew
+                  }
                   disabled={
                     importing ||
-                    newCount === 0
+                    newCount ===
+                      0
                   }
                 >
-                  Tüm NEW kayıtları seç
+                  Tüm NEW
+                  kayıtları seç
                 </button>
 
                 <button
                   type="button"
-                  onClick={clearSelection}
+                  onClick={
+                    clearSelection
+                  }
                   disabled={
                     importing ||
-                    selectedCount === 0
+                    selectedCount ===
+                      0
                   }
                 >
                   Seçimi temizle
@@ -791,17 +1157,30 @@ function ImportPage() {
               <table className="analysis-table">
                 <thead>
                   <tr>
-                    <th>Seç</th>
-                    <th>Durum</th>
-                    <th>Festival</th>
-                    <th>Ülke</th>
-                    <th>Açıklama</th>
+                    <th>
+                      Seç
+                    </th>
+                    <th>
+                      Durum
+                    </th>
+                    <th>
+                      Festival
+                    </th>
+                    <th>
+                      Ülke
+                    </th>
+                    <th>
+                      Açıklama
+                    </th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {analyzedRows.map(
-                    (item, index) => (
+                    (
+                      item,
+                      index
+                    ) => (
                       <tr
                         key={`${item.festivalName}-${item.country}-${index}`}
                       >
@@ -821,7 +1200,8 @@ function ImportPage() {
                             ) =>
                               updateSelection(
                                 index,
-                                event.target
+                                event
+                                  .target
                                   .checked
                               )
                             }
@@ -845,11 +1225,18 @@ function ImportPage() {
                         </td>
 
                         <td>
-                          {item.country}
+                          {
+                            item.country
+                          }
+                          {item.countryCode
+                            ? ` (${item.countryCode})`
+                            : ''}
                         </td>
 
                         <td>
-                          {item.reason}
+                          {
+                            item.reason
+                          }
                         </td>
                       </tr>
                     )
@@ -861,12 +1248,15 @@ function ImportPage() {
             <div className="import-submit-area">
               <div>
                 <strong>
-                  Veritabanına aktar
+                  Veritabanına
+                  aktar
                 </strong>
 
                 <span>
-                  Seçili NEW festivaller D1
-                  veritabanına eklenecek.
+                  Seçili NEW
+                  festivaller D1
+                  veritabanına
+                  eklenecek.
                 </span>
               </div>
 
@@ -879,7 +1269,8 @@ function ImportPage() {
                 disabled={
                   importing ||
                   analyzing ||
-                  selectedCount === 0
+                  selectedCount ===
+                    0
                 }
               >
                 {importing ? (
@@ -888,13 +1279,20 @@ function ImportPage() {
                       size={18}
                       className="import-spinner"
                     />
-                    Import ediliyor…
+                    Import
+                    ediliyor…
                   </>
                 ) : (
                   <>
-                    <Upload size={18} />
-                    Seçili {selectedCount}{' '}
-                    Festivali Import Et
+                    <Upload
+                      size={18}
+                    />
+                    Seçili{' '}
+                    {
+                      selectedCount
+                    }{' '}
+                    Festivali
+                    Import Et
                   </>
                 )}
               </button>
@@ -905,17 +1303,26 @@ function ImportPage() {
       {importSummary && (
         <section className="import-result-panel">
           <div className="import-result-heading">
-            {importSummary.failed === 0 ? (
-              <CheckCircle2 size={28} />
+            {importSummary.failed ===
+            0 ? (
+              <CheckCircle2
+                size={28}
+              />
             ) : (
-              <XCircle size={28} />
+              <XCircle
+                size={28}
+              />
             )}
 
             <div>
-              <h2>Import Sonucu</h2>
+              <h2>
+                Import Sonucu
+              </h2>
 
               <p>
-                {importSummary.requested}{' '}
+                {
+                  importSummary.requested
+                }{' '}
                 festival işlendi.
               </p>
             </div>
@@ -924,42 +1331,68 @@ function ImportPage() {
           <div className="result-counts">
             <div>
               <strong>
-                {importSummary.imported}
+                {
+                  importSummary.imported
+                }
               </strong>
-              <span>IMPORTED</span>
+              <span>
+                IMPORTED
+              </span>
             </div>
 
             <div>
               <strong>
-                {importSummary.skipped}
+                {
+                  importSummary.skipped
+                }
               </strong>
-              <span>SKIPPED</span>
+              <span>
+                SKIPPED
+              </span>
             </div>
 
             <div>
               <strong>
-                {importSummary.failed}
+                {
+                  importSummary.failed
+                }
               </strong>
-              <span>FAILED</span>
+              <span>
+                FAILED
+              </span>
             </div>
           </div>
 
-          {importResults.length > 0 && (
+          {importResults.length >
+            0 && (
             <div className="analysis-table-wrapper">
               <table className="analysis-table">
                 <thead>
                   <tr>
-                    <th>Sonuç</th>
-                    <th>Festival</th>
-                    <th>Ülke</th>
-                    <th>External ID</th>
-                    <th>Açıklama</th>
+                    <th>
+                      Sonuç
+                    </th>
+                    <th>
+                      Festival
+                    </th>
+                    <th>
+                      Ülke
+                    </th>
+                    <th>
+                      External ID
+                    </th>
+                    <th>
+                      Açıklama
+                    </th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {importResults.map(
-                    (result, index) => (
+                    (
+                      result,
+                      index
+                    ) => (
                       <tr
                         key={`${result.festival}-${index}`}
                       >
@@ -973,12 +1406,16 @@ function ImportPage() {
 
                         <td>
                           <strong>
-                            {result.festival}
+                            {
+                              result.festival
+                            }
                           </strong>
                         </td>
 
                         <td>
-                          {result.country}
+                          {
+                            result.country
+                          }
                         </td>
 
                         <td>
