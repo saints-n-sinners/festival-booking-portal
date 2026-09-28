@@ -88,3 +88,289 @@
   border-radius: 12px;
   background: #f8fbff;
 }
+
+.selected-file > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selected-file strong,
+.selected-file span {
+  display: block;
+}
+
+.selected-file span {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.selected-file button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.selected-file button:hover {
+  background: #eef2f6;
+  color: #101828;
+}
+
+.import-preview {
+  margin-top: 24px;
+  padding: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.import-preview-header > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.import-preview-header h2 {
+  margin: 0 0 5px;
+}
+
+.import-preview-header p {
+  margin: 0;
+  color: #667085;
+}
+
+.detected-columns {
+  margin-top: 24px;
+}
+
+.detected-columns > strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.detected-columns > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.detected-columns span {
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 12px;
+}
+
+.preview-table-wrapper {
+  margin-top: 24px;
+  overflow-x: auto;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.preview-table th,
+.preview-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #eaecf0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.preview-table th {
+  background: #f9fafb;
+  color: #475467;
+  font-weight: 600;
+}
+
+.preview-table td {
+  color: #344054;
+}
+
+.preview-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.import-analysis {
+  margin-top: 24px;
+  padding: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.import-analysis > span {
+  display: block;
+  margin-top: 6px;
+  color: #667085;
+  font-size: 14px;
+}
+
+.analysis-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.analysis-heading h2 {
+  margin: 0 0 5px;
+}
+
+.analysis-heading p {
+  margin: 0;
+  color: #667085;
+}
+
+.analysis-counts {
+  display: flex;
+  gap: 10px;
+}
+
+.analysis-count {
+  min-width: 78px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.analysis-count strong,
+.analysis-count span {
+  display: block;
+}
+
+.analysis-count strong {
+  font-size: 20px;
+}
+
+.analysis-count span {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.analysis-new {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.analysis-exists {
+  background: #fffaeb;
+  color: #b54708;
+}
+
+.analysis-error {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.selection-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 22px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.selection-summary strong {
+  font-size: 14px;
+}
+
+.selection-summary span {
+  color: #667085;
+  font-size: 13px;
+}
+
+.analysis-table-wrapper {
+  margin-top: 20px;
+  overflow-x: auto;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+}
+
+.analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.analysis-table th,
+.analysis-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #eaecf0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.analysis-table th {
+  background: #f9fafb;
+  color: #475467;
+}
+
+.analysis-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.import-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.import-status-new {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.import-status-exists {
+  background: #fffaeb;
+  color: #b54708;
+}
+
+.import-status-error {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.analysis-table input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.analysis-table input[type='checkbox']:disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .analysis-heading {
+    flex-direction: column;
+  }
+
+  .analysis-counts {
+    width: 100%;
+  }
+
+  .analysis-count {
+    flex: 1;
+  }
+}
